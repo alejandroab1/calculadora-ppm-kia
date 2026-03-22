@@ -285,12 +285,13 @@ async function startApp(){
 async function resolveSP(){
   try{
     var tok=await getToken();
-    var sr=await fetch('https://graph.microsoft.com/v1.0/sites/'+SHAREPOINT_HOST+':'+SITE_PATH,{headers:{Authorization:'Bearer '+tok}});
+    var sr=await fetch("https://graph.microsoft.com/v1.0/sites/"+SHAREPOINT_HOST+":"+SITE_PATH,{headers:{Authorization:"Bearer "+tok}});
     var sd=await sr.json();siteId=sd.id;
-    var lr=await fetch('https://graph.microsoft.com/v1.0/sites/'+siteId+'/lists?$filter=displayName eq ''+LIST_NAME+''',{headers:{Authorization:'Bearer '+tok}});
+    var filterUrl="https://graph.microsoft.com/v1.0/sites/"+siteId+"/lists?$filter=displayName eq '"+LIST_NAME+"'";
+    var lr=await fetch(filterUrl,{headers:{Authorization:"Bearer "+tok}});
     var ld=await lr.json();
     if(ld.value&&ld.value.length>0)listId=ld.value[0].id;
-  }catch(e){console.warn('SP init:',e);}
+  }catch(e){console.warn("SP init:",e);}
 }
 async function saveCot(data){
   if(!siteId||!listId){showToast('Error: sin conexión SharePoint',true);return false;}
