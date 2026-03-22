@@ -144,7 +144,7 @@ body{font-family:'Barlow',sans-serif;background:var(--kia-dark);color:var(--kia-
   <div class="login-card">
     <div class="login-logo">KIA</div>
     <div class="login-subtitle">PLANES DE MANTENIMIENTO PREPAGADO</div>
-    <button class="btn-microsoft" onclick="signIn()">
+    <button class="btn-microsoft" id="btn-login">
       <svg width="20" height="20" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
         <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
         <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
@@ -675,6 +675,9 @@ function calcUL() {
 // 10. INICIO
 // ================================================================
 window.addEventListener('load', function() {
+  // Attach button listeners after DOM + scripts are ready
+  var btnLogin = document.getElementById('btn-login');
+  if(btnLogin) btnLogin.addEventListener('click', function(){ signIn(); });
   initMSAL();
 });
 
