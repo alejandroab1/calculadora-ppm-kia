@@ -419,10 +419,23 @@ function cambiarUsuario(){
 }
 async function saveCot(data){
   try{
-    var payload={fields:{Titulo:'COT-'+(data.cot_num||'0000000')+' · '+data.cliente,Vendedor:currentVendedor,Cliente:data.cliente,ID_Cliente:data.id_cliente,Modelo:data.modelo,Configuracion:data.config.replace(data.modelo,'').trim(),Plan:data.plan,Precio_PPM:parseFloat(data.ppm)||0,Precio_Regular:parseFloat(data.regular)||0,Fecha_Cotizacion:new Date().toISOString().split('T')[0],Estado:'Pendiente',Num_Cotizacion:data.cot_num||'0000000'}};
+    var fields={Titulo:'COT-'+(data.cot_num||'0000000')+' - '+data.cliente,Vendedor:currentVendedor,Cliente:data.cliente,ID_Cliente:data.id_cliente,Modelo:data.modelo,Configuracion:data.config.replace(data.modelo,'').trim(),Plan:data.plan,Precio_PPM:parseFloat(data.ppm)||0,Precio_Regular:parseFloat(data.regular)||0,Fecha_Cotizacion:new Date().toISOString().split('T')[0],Estado:'Pendiente'};
+    if(data.cot_num)fields['Num_Cotizacion']=data.cot_num;
+    var payload={fields:fields};
     var r=await fetch('https://api.airtable.com/v0/'+AT_BASE+'/'+encodeURIComponent(AT_TABLE),{method:'POST',headers:{Authorization:'Bearer '+AT_TOKEN,'Content-Type':'application/json'},body:JSON.stringify(payload)});
     var result=await r.json();
-    if(result.error){showToast('Error: '+result.error.message,true);return false;}
+    if(result.error){
+      // If error is about Num_Cotizacion field, retry without it
+      if(result.error.message&&(result.error.message.indexOf('Num_Cotizacion')>=0||result.error.message.indexOf('Unknown field')>=0)){
+        delete payload.fields['Num_Cotizacion'];
+        var r2=await fetch('https://api.airtable.com/v0/'+AT_BASE+'/'+encodeURIComponent(AT_TABLE),{method:'POST',headers:{Authorization:'Bearer '+AT_TOKEN,'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        var result2=await r2.json();
+        if(result2.error){showToast('Error: '+result2.error.message,true);return false;}
+        showToast('Nota: agrega la columna Num_Cotizacion en Airtable para guardar el número');
+        return r2.ok;
+      }
+      showToast('Error: '+result.error.message,true);return false;
+    }
     return r.ok;
   }catch(e){showToast('Error: '+e.message,true);return false;}
 }
