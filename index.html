@@ -288,6 +288,18 @@ const SITE_PATH = "/sites/gestordocumental";
 const LIST_NAME = "Cotizaciones PPM KIA";
 const ADMIN_EMAILS = []; // Agrega emails de admins: ["admin@santaclara.com.pe"]
 
+// ── UTILS (must be first) ──
+const $ = id => document.getElementById(id);
+const fmt = v => v != null ? '$' + parseFloat(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '—';
+
+function showToast(msg, isError=false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (isError ? ' error' : '');
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 3500);
+}
+
 // ── MSAL ──
 const msalConfig = {
   auth: { clientId: CLIENT_ID, authority: `https://login.microsoftonline.com/${TENANT_ID}`, redirectUri: window.location.href.split('?')[0] },
@@ -459,17 +471,7 @@ function renderAdminTable(rows) {
   document.getElementById('admin-tbody').innerHTML = tbody;
 }
 
-// ── UTILS ──
-const $ = id => document.getElementById(id);
-const fmt = v => v != null ? '$' + parseFloat(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '—';
-
-function showToast(msg, isError=false) {
-  const t = $('toast');
-  t.textContent = msg;
-  t.className = 'toast' + (isError ? ' error' : '');
-  t.style.display = 'block';
-  setTimeout(() => t.style.display = 'none', 3500);
-}
+// ── UTILS (defined above) ──
 
 function setOptions(sel, opts, placeholder) {
   sel.innerHTML = `<option value="">${placeholder}</option>` +
