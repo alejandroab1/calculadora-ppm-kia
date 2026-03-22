@@ -155,13 +155,13 @@ body{font-family:'Barlow',sans-serif;background:var(--kia-dark);color:var(--kia-
       <div class="form-grid">
         <div class="form-group"><label class="form-label">Modelo</label>
           <select class="form-select" id="fs-modelo"><option value="">— Selecciona modelo —</option></select></div>
-        <div class="form-group"><label class="form-label">Motor</label>
+        <div class="form-group" id="fs-motor-group"><label class="form-label">Motor</label>
           <select class="form-select" id="fs-motor" disabled><option value="">— —</option></select></div>
-        <div class="form-group"><label class="form-label">Transmisión</label>
+        <div class="form-group" id="fs-trans-group"><label class="form-label">Transmisión</label>
           <select class="form-select" id="fs-trans" disabled><option value="">— —</option></select></div>
         <div class="form-group"><label class="form-label">Frecuencia</label>
           <select class="form-select" id="fs-freq" disabled><option value="">— —</option></select></div>
-        <div class="form-group"><label class="form-label">Combustible</label>
+        <div class="form-group" id="fs-comb-group"><label class="form-label">Combustible</label>
           <select class="form-select" id="fs-comb" disabled><option value="">— —</option></select></div>
       </div>
       <button class="btn-calc btn-fs" id="btn-calc-fs">&#9654; Calcular Plan Full Service</button>
@@ -173,13 +173,13 @@ body{font-family:'Barlow',sans-serif;background:var(--kia-dark);color:var(--kia-
       <div class="form-grid">
         <div class="form-group"><label class="form-label">Modelo</label>
           <select class="form-select" id="ul-modelo"><option value="">— Selecciona modelo —</option></select></div>
-        <div class="form-group"><label class="form-label">Motor</label>
+        <div class="form-group" id="ul-motor-group"><label class="form-label">Motor</label>
           <select class="form-select" id="ul-motor" disabled><option value="">— —</option></select></div>
-        <div class="form-group"><label class="form-label">Transmisión</label>
+        <div class="form-group" id="ul-trans-group"><label class="form-label">Transmisión</label>
           <select class="form-select" id="ul-trans" disabled><option value="">— —</option></select></div>
         <div class="form-group"><label class="form-label">Frecuencia</label>
           <select class="form-select" id="ul-freq" disabled><option value="">— —</option></select></div>
-        <div class="form-group"><label class="form-label">Combustible</label>
+        <div class="form-group" id="ul-comb-group"><label class="form-label">Combustible</label>
           <select class="form-select" id="ul-comb" disabled><option value="">— —</option></select></div>
         <div class="form-group"><label class="form-label">Rango Unlimited (KM)</label>
           <select class="form-select" id="ul-rango" disabled><option value="">— —</option></select></div>
@@ -536,46 +536,110 @@ window.addEventListener('load',function(){
   gel('btn-refresh').addEventListener('click',function(){loadAdmin();});
   gel('admin-search').addEventListener('input',function(){filterTable();});
   gel('admin-filter-status').addEventListener('change',function(){filterTable();});
+
+function hideField(id){var el=gel(id);if(el){el.style.display='none';}}
+function showField(id){var el=gel(id);if(el){el.style.display='flex';}}
+function autoFillEV(prefix,m){
+  // Modelo eléctrico: motor, trans y comb son vacíos
+  gel(prefix+'-motor').value='';gel(prefix+'-motor').disabled=true;hideField(prefix+'-motor-group');
+  gel(prefix+'-trans').value='';gel(prefix+'-trans').disabled=true;hideField(prefix+'-trans-group');
+  gel(prefix+'-comb').value='';gel(prefix+'-comb').disabled=false;hideField(prefix+'-comb-group');
+  // Solo habilitar frecuencia
+  var freqs=Object.keys(D.cascade[m]['']['']).sort();
+  setOpts(gel(prefix+'-freq'),freqs,'— Frecuencia —');
+  if(prefix==='ul'){resetSel(gel('ul-rango'));}
+}
   // FS cascades
   gel('fs-modelo').addEventListener('change',function(){
     var m=this.value;if(!m)return;
-    setOpts(gel('fs-motor'),Object.keys(D.cascade[m]).sort(),'— Motor —');
-    [gel('fs-trans'),gel('fs-freq'),gel('fs-comb')].forEach(function(s){resetSel(s);});
+    var motors=Object.keys(D.cascade[m]).sort();
+    // Si el único motor es vacío, es modelo eléctrico — ocultamos campos N/A
+    if(motors.length===1&&motors[0]===''){
+      autoFillEV('fs',m);
+    } else {
+      setOpts(gel('fs-motor'),motors,'— Motor —');
+      [gel('fs-trans'),gel('fs-freq'),gel('fs-comb')].forEach(function(s){resetSel(s);});
+      showField('fs-motor-group');showField('fs-trans-group');showField('fs-comb-group');
+    }
   });
   gel('fs-motor').addEventListener('change',function(){
-    var m=gel('fs-modelo').value,mo=this.value;if(!mo)return;
-    setOpts(gel('fs-trans'),Object.keys(D.cascade[m][mo]).sort(),'— Transmision —');
-    [gel('fs-freq'),gel('fs-comb')].forEach(function(s){resetSel(s);});
+    var m=gel('fs-modelo').value,mo=this.value;if(!mo&&mo!=='')return;
+    var transs=Object.keys(D.cascade[m][mo]).sort();
+    if(transs.length===1&&transs[0]===''){
+      gel('fs-trans').value='';gel('fs-trans').disabled=true;
+      hideField('fs-trans-group');
+      var freqs=Object.keys(D.cascade[m][mo]['']).sort();
+      setOpts(gel('fs-freq'),freqs,'— Frecuencia —');
+      resetSel(gel('fs-comb'));hideField('fs-comb-group');
+    } else {
+      showField('fs-trans-group');
+      setOpts(gel('fs-trans'),transs,'— Transmision —');
+      [gel('fs-freq'),gel('fs-comb')].forEach(function(s){resetSel(s);});
+    }
   });
   gel('fs-trans').addEventListener('change',function(){
-    var m=gel('fs-modelo').value,mo=gel('fs-motor').value,t=this.value;if(!t)return;
-    setOpts(gel('fs-freq'),Object.keys(D.cascade[m][mo][t]).sort(),'— Frecuencia —');
+    var m=gel('fs-modelo').value,mo=gel('fs-motor').value,t=this.value;if(t===undefined)return;
+    var freqs=Object.keys(D.cascade[m][mo][t]).sort();
+    setOpts(gel('fs-freq'),freqs,'— Frecuencia —');
     resetSel(gel('fs-comb'));
   });
   gel('fs-freq').addEventListener('change',function(){
     var m=gel('fs-modelo').value,mo=gel('fs-motor').value,t=gel('fs-trans').value,f=this.value;if(!f)return;
-    setOpts(gel('fs-comb'),D.cascade[m][mo][t][f],'— Combustible —');
+    var combs=D.cascade[m][mo][t][f];
+    if(combs.length===1&&combs[0]===''){
+      gel('fs-comb').value='';gel('fs-comb').disabled=false;
+      hideField('fs-comb-group');
+    } else {
+      showField('fs-comb-group');
+      setOpts(gel('fs-comb'),combs,'— Combustible —');
+    }
   });
   // UL cascades
   gel('ul-modelo').addEventListener('change',function(){
     var m=this.value;if(!m)return;
-    setOpts(gel('ul-motor'),Object.keys(D.cascade[m]).sort(),'— Motor —');
-    [gel('ul-trans'),gel('ul-freq'),gel('ul-comb'),gel('ul-rango')].forEach(function(s){resetSel(s);});
+    var motors=Object.keys(D.cascade[m]).sort();
+    if(motors.length===1&&motors[0]===''){
+      autoFillEV('ul',m);
+    } else {
+      setOpts(gel('ul-motor'),motors,'— Motor —');
+      [gel('ul-trans'),gel('ul-freq'),gel('ul-comb'),gel('ul-rango')].forEach(function(s){resetSel(s);});
+      showField('ul-motor-group');showField('ul-trans-group');showField('ul-comb-group');
+    }
   });
   gel('ul-motor').addEventListener('change',function(){
-    var m=gel('ul-modelo').value,mo=this.value;if(!mo)return;
-    setOpts(gel('ul-trans'),Object.keys(D.cascade[m][mo]).sort(),'— Transmision —');
-    [gel('ul-freq'),gel('ul-comb'),gel('ul-rango')].forEach(function(s){resetSel(s);});
+    var m=gel('ul-modelo').value,mo=this.value;if(!mo&&mo!=='')return;
+    var transs=Object.keys(D.cascade[m][mo]).sort();
+    if(transs.length===1&&transs[0]===''){
+      gel('ul-trans').value='';gel('ul-trans').disabled=true;
+      hideField('ul-trans-group');
+      var freqs=Object.keys(D.cascade[m][mo]['']).sort();
+      setOpts(gel('ul-freq'),freqs,'— Frecuencia —');
+      resetSel(gel('ul-comb'));hideField('ul-comb-group');
+      resetSel(gel('ul-rango'));
+    } else {
+      showField('ul-trans-group');
+      setOpts(gel('ul-trans'),transs,'— Transmision —');
+      [gel('ul-freq'),gel('ul-comb'),gel('ul-rango')].forEach(function(s){resetSel(s);});
+    }
   });
   gel('ul-trans').addEventListener('change',function(){
-    var m=gel('ul-modelo').value,mo=gel('ul-motor').value,t=this.value;if(!t)return;
+    var m=gel('ul-modelo').value,mo=gel('ul-motor').value,t=this.value;if(t===undefined)return;
     setOpts(gel('ul-freq'),Object.keys(D.cascade[m][mo][t]).sort(),'— Frecuencia —');
     [gel('ul-comb'),gel('ul-rango')].forEach(function(s){resetSel(s);});
   });
   gel('ul-freq').addEventListener('change',function(){
     var m=gel('ul-modelo').value,mo=gel('ul-motor').value,t=gel('ul-trans').value,f=this.value;if(!f)return;
-    setOpts(gel('ul-comb'),D.cascade[m][mo][t][f],'— Combustible —');
-    resetSel(gel('ul-rango'));
+    var combs=D.cascade[m][mo][t][f];
+    if(combs.length===1&&combs[0]===''){
+      gel('ul-comb').value='';gel('ul-comb').disabled=false;
+      hideField('ul-comb-group');
+      var rangos=D.ul_rangos[m+'|'+mo+'|'+t+'|'+f+'|']||[];
+      rangos.length?setOpts(gel('ul-rango'),rangos.sort(),'— Rango Unlimited —'):resetSel(gel('ul-rango'),'— Sin rangos —');
+    } else {
+      showField('ul-comb-group');
+      setOpts(gel('ul-comb'),combs,'— Combustible —');
+      resetSel(gel('ul-rango'));
+    }
   });
   gel('ul-comb').addEventListener('change',function(){
     var m=gel('ul-modelo').value,mo=gel('ul-motor').value,t=gel('ul-trans').value,f=gel('ul-freq').value,c=this.value;
