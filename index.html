@@ -239,7 +239,7 @@ function showToast(msg,isError){
 }
 function setOpts(sel,opts,ph){
   sel.innerHTML='<option value="">'+ph+'</option>'+
-    opts.map(function(o){return '<option value="'+o+'">'+(o||'Gasolina')+'</option>';}).join('');
+    opts.map(function(o){return '<option value="'+o+'">'+(o||'Gasolina (estándar)')+'</option>';}).join('');
   sel.disabled=false;
 }
 function resetSel(sel,ph){
@@ -433,7 +433,8 @@ function attachSave(planLabel,modeloAuto,ppm,regular,cfg){
 // ── CALC FS ──
 function calcFS(){
   var m=gel('fs-modelo').value,mo=gel('fs-motor').value,t=gel('fs-trans').value,f=gel('fs-freq').value,c=gel('fs-comb').value;
-  if(!m||!mo||!t||!f||c===''){showToast('Completa todos los campos',true);return;}
+  if(!m||!mo||!t||!f){showToast('Completa todos los campos',true);return;}
+  if(gel('fs-comb').disabled){showToast('Completa todos los campos',true);return;}
   var key=m+'|'+mo+'|'+t+'|'+f+'|'+c;
   var pr=D.precios_fs[key],sv=D.servicios_fs[key]||[];
   if(!pr){showToast('Sin datos para esta combinacion',true);return;}
@@ -458,7 +459,8 @@ function calcFS(){
 // ── CALC UL ──
 function calcUL(){
   var m=gel('ul-modelo').value,mo=gel('ul-motor').value,t=gel('ul-trans').value,f=gel('ul-freq').value,c=gel('ul-comb').value,rango=gel('ul-rango').value;
-  if(!m||!mo||!t||!f||c===''||!rango){showToast('Completa todos los campos',true);return;}
+  if(!m||!mo||!t||!f||!rango){showToast('Completa todos los campos',true);return;}
+  if(gel('ul-comb').disabled){showToast('Completa todos los campos',true);return;}
   var fsk=m+'|'+mo+'|'+t+'|'+f+'|'+c,ulk=fsk+'|'+rango;
   var pfs=D.precios_fs[fsk],pul=D.precios_ul[ulk];
   var sfs=D.servicios_fs[fsk]||[],sul=D.servicios_ul[ulk]||[];
