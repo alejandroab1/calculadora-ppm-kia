@@ -4,7 +4,13 @@
 <meta charset='UTF-8'>
 <meta name='viewport' content='width=device-width, initial-scale=1.0'>
 <title>Calculadora PPM KIA</title>
-<script src='https://cdnjs.cloudflare.com/ajax/libs/microsoft-authentication-library-for-js/2.38.0/msal-browser.min.js'></script>
+<script src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js"></script>
+<script>
+  // Fallback si el CDN principal falla
+  if(typeof msal === 'undefined'){
+    document.write('<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.0/lib/msal-browser.min.js"><\/script>');
+  }
+</script>
 <link href='https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap' rel='stylesheet'>
 <style>
 
