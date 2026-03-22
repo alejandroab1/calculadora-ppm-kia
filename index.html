@@ -37,6 +37,7 @@ body{font-family:'Barlow',sans-serif;background:var(--kia-dark);color:var(--kia-
 .tab-btn.tab-fs.active::after{background:var(--fs-color)}
 .tab-btn.tab-ul.active::after{background:var(--kia-red)}
 .tab-btn.tab-admin.active::after{background:var(--accent-gold)}
+.tab-btn.tab-mis.active::after{background:var(--accent-green)}
 .main{max-width:1200px;margin:0 auto;padding:40px}
 .tab-content{display:none}.tab-content.active{display:block}
 .section-title{font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:700;letter-spacing:3px;text-transform:uppercase;margin-bottom:6px}
@@ -146,7 +147,8 @@ body{font-family:'Barlow',sans-serif;background:var(--kia-dark);color:var(--kia-
   <div class="tabs-bar">
     <button class="tab-btn tab-fs active" id="tab-btn-fs">Full Service</button>
     <button class="tab-btn tab-ul" id="tab-btn-ul">FS + Unlimited</button>
-    <button class="tab-btn tab-admin" id="tab-admin-btn">&#9654; Administración</button>
+    <button class="tab-btn tab-mis" id="tab-mis-btn" style="display:none" >&#9776; Mis Cotizaciones</button>
+    <button class="tab-btn tab-admin" id="tab-admin-btn" style="display:none">&#9654; Administración</button>
   </div>
   <div class="main">
     <div class="tab-content active" id="tab-fs">
@@ -187,6 +189,36 @@ body{font-family:'Barlow',sans-serif;background:var(--kia-dark);color:var(--kia-
       <button class="btn-calc btn-ul" id="btn-calc-ul">&#9654; Calcular Plan Completo</button>
       <div class="results-area" id="ul-results" style="display:none"></div>
     </div>
+    <div class="tab-content" id="tab-mis">
+      <div class="section-title" style="color:var(--accent-green)">Mis <span style="color:var(--kia-red)">Cotizaciones</span></div>
+      <div class="section-subtitle">Historial de tus cotizaciones · Puedes actualizar el estado de cada una</div>
+      <div class="stats-cards">
+        <div class="stat-card"><div class="stat-card-label">Total</div><div class="stat-card-value gold" id="mis-stat-total">—</div></div>
+        <div class="stat-card"><div class="stat-card-label">Pendientes</div><div class="stat-card-value" id="mis-stat-pend">—</div></div>
+        <div class="stat-card"><div class="stat-card-label">Aceptadas</div><div class="stat-card-value green" id="mis-stat-acep">—</div></div>
+        <div class="stat-card"><div class="stat-card-label">Rechazadas</div><div class="stat-card-value red" id="mis-stat-rech">—</div></div>
+      </div>
+      <div class="admin-toolbar">
+        <input type="text" class="admin-search" id="mis-search" placeholder="Buscar cliente, modelo...">
+        <select class="admin-filter" id="mis-filter-status">
+          <option value="">Todos los estados</option>
+          <option value="Pendiente">Pendiente</option>
+          <option value="Aceptada">Aceptada</option>
+          <option value="Rechazada">Rechazada</option>
+        </select>
+        <button class="btn-refresh" id="btn-mis-refresh">&#8635; Actualizar</button>
+      </div>
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead><tr>
+            <th>Fecha</th><th>Cliente</th><th>ID Cliente</th>
+            <th>Modelo</th><th>Plan</th><th>Precio PPM</th><th>Estado</th>
+          </tr></thead>
+          <tbody id="mis-tbody"><tr><td colspan="7" class="loading">Abre la pestaña para ver tus cotizaciones</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="tab-content" id="tab-admin">
       <div class="section-title" style="color:var(--accent-gold)">Panel de <span style="color:var(--kia-red)">Administración</span></div>
       <div class="section-subtitle">Gestión de todas las cotizaciones</div>
@@ -226,6 +258,7 @@ var AT_TOKEN="patXWY95ViNoWCU01.5872693b5981637c2e143269fa544221ef01fc5ea108802b
 var AT_BASE="appnnHyteoGbJ9mUr";
 var AT_TABLE="Proyectos";
 var VENDEDOR_KEY='kia_ppm_vendedor';
+var ADMIN_NAME='Administrador11.';
 var currentVendedor='';
 var allCotizaciones=[];
 
@@ -252,6 +285,7 @@ function switchTab(t){
   gel('tab-btn-'+t).classList.add('active');
   gel('tab-'+t).classList.add('active');
   if(t==='admin')loadAdmin();
+  if(t==='mis')loadMis();
 }
 
 // ── LOGIN CON LOCALSTORAGE ──
@@ -276,6 +310,16 @@ function showApp(){
   gel('login-screen').style.display='none';
   gel('app-screen').style.display='block';
   gel('user-display').textContent='Hola, '+currentVendedor;
+  var isAdmin=currentVendedor===ADMIN_NAME;
+  var adminTab=gel('tab-admin-btn');
+  var misTab=gel('tab-mis-btn');
+  if(isAdmin){
+    adminTab.style.display='inline-block';
+    if(misTab)misTab.style.display='none';
+  } else {
+    adminTab.style.display='none';
+    if(misTab)misTab.style.display='inline-block';
+  }
   populateFS();populateUL();
 }
 function cambiarUsuario(){
@@ -336,6 +380,60 @@ async function loadAdmin(){
     renderTable(allCotizaciones);
     updateStats(allCotizaciones);
   }catch(e){showToast('Error al cargar: '+e.message,true);}
+}
+async function loadMis(){
+  var tbody=gel('mis-tbody');
+  tbody.innerHTML='<tr><td colspan="7" class="loading">Cargando...</td></tr>';
+  try{
+    var url='https://api.airtable.com/v0/'+AT_BASE+'/'+encodeURIComponent(AT_TABLE)+
+      '?sort[0][field]=Fecha_Cotizacion&sort[0][direction]=desc&pageSize=100'+
+      '&filterByFormula='+encodeURIComponent("{Vendedor}='"+currentVendedor+"'");
+    var r=await fetch(url,{headers:{Authorization:'Bearer '+AT_TOKEN}});
+    var d=await r.json();
+    if(d.error){showToast('Error: '+d.error.message,true);return;}
+    var rows=d.records||[];
+    // Stats
+    gel('mis-stat-total').textContent=rows.length;
+    gel('mis-stat-pend').textContent=rows.filter(function(r){return r.fields.Estado==='Pendiente';}).length;
+    gel('mis-stat-acep').textContent=rows.filter(function(r){return r.fields.Estado==='Aceptada';}).length;
+    gel('mis-stat-rech').textContent=rows.filter(function(r){return r.fields.Estado==='Rechazada';}).length;
+    if(!rows.length){tbody.innerHTML='<tr><td colspan="7" class="empty-state">No tienes cotizaciones aún</td></tr>';return;}
+    renderMisTable(rows);
+    // store for filter
+    window._misCotizaciones=rows;
+  }catch(e){showToast('Error: '+e.message,true);}
+}
+function filterMisTable(){
+  var q=gel('mis-search').value.toLowerCase();
+  var st=gel('mis-filter-status').value;
+  var rows=(window._misCotizaciones||[]).filter(function(r){
+    var f=r.fields;
+    var mq=!q||[f.Cliente,f.Modelo,f.Plan,f.ID_Cliente].some(function(v){return v&&v.toLowerCase().indexOf(q)>=0;});
+    return mq&&(!st||f.Estado===st);
+  });
+  renderMisTable(rows);
+}
+function renderMisTable(rows){
+  var tbody=gel('mis-tbody');
+  if(!rows.length){tbody.innerHTML='<tr><td colspan="7" class="empty-state">No hay cotizaciones</td></tr>';return;}
+  tbody.innerHTML=rows.map(function(r){
+    var f=r.fields;
+    var opts=['Pendiente','Aceptada','Rechazada'].map(function(s){
+      return '<option value="'+s+'"'+(f.Estado===s?' selected':'')+'>'+s+'</option>';
+    }).join('');
+    return '<tr>'+
+      '<td style="font-size:12px;white-space:nowrap">'+(f.Fecha_Cotizacion||'—')+'</td>'+
+      '<td style="font-weight:500">'+(f.Cliente||'—')+'</td>'+
+      '<td>'+(f.ID_Cliente||'—')+'</td>'+
+      '<td>'+(f.Modelo||'—')+'</td>'+
+      '<td style="font-size:12px">'+(f.Plan||'—')+'</td>'+
+      '<td style="color:var(--accent-gold);font-weight:700">$'+(f.Precio_PPM?parseFloat(f.Precio_PPM).toFixed(2):'—')+'</td>'+
+      '<td><select class="status-select" data-id="'+r.id+'">'+opts+'</select></td>'+
+      '</tr>';
+  }).join('');
+  tbody.querySelectorAll('.status-select').forEach(function(sel){
+    sel.addEventListener('change',function(){updEstado(this.getAttribute('data-id'),this.value);setTimeout(loadMis,1000);});
+  });
 }
 function updateStats(rows){
   gel('stat-total').textContent=rows.length;
@@ -562,6 +660,10 @@ window.addEventListener('load',function(){
   gel('tab-btn-fs').addEventListener('click',function(){switchTab('fs');});
   gel('tab-btn-ul').addEventListener('click',function(){switchTab('ul');});
   gel('tab-admin-btn').addEventListener('click',function(){switchTab('admin');});
+  gel('tab-mis-btn').addEventListener('click',function(){switchTab('mis');});
+  gel('btn-mis-refresh').addEventListener('click',function(){loadMis();});
+  gel('mis-search').addEventListener('input',function(){filterMisTable();});
+  gel('mis-filter-status').addEventListener('change',function(){filterMisTable();});
   // Calc buttons
   gel('btn-calc-fs').addEventListener('click',function(){calcFS();});
   gel('btn-calc-ul').addEventListener('click',function(){calcUL();});
