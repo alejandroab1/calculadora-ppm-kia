@@ -147,8 +147,8 @@ body{font-family:'Barlow',sans-serif;background:var(--kia-dark);color:var(--kia-
   <div class="tabs-bar">
     <button class="tab-btn tab-fs active" id="tab-btn-fs">Full Service</button>
     <button class="tab-btn tab-ul" id="tab-btn-ul">FS + Unlimited</button>
-    <button class="tab-btn tab-mis" id="tab-mis-btn" style="display:none" >&#9776; Mis Cotizaciones</button>
-    <button class="tab-btn tab-admin" id="tab-admin-btn" style="display:none">&#9654; Administración</button>
+    <button class="tab-btn tab-mis" id="tab-btn-mis" style="display:none" >&#9776; Mis Cotizaciones</button>
+    <button class="tab-btn tab-admin" id="tab-btn-admin" style="display:none">&#9654; Administración</button>
   </div>
   <div class="main">
     <div class="tab-content active" id="tab-fs">
@@ -311,8 +311,8 @@ function showApp(){
   gel('app-screen').style.display='block';
   gel('user-display').textContent='Hola, '+currentVendedor;
   var isAdmin=currentVendedor===ADMIN_NAME;
-  var adminTab=gel('tab-admin-btn');
-  var misTab=gel('tab-mis-btn');
+  var adminTab=gel('tab-btn-admin');
+  var misTab=gel('tab-btn-mis');
   if(isAdmin){
     adminTab.style.display='inline-block';
     if(misTab)misTab.style.display='none';
@@ -659,8 +659,8 @@ window.addEventListener('load',function(){
   // Tabs
   gel('tab-btn-fs').addEventListener('click',function(){switchTab('fs');});
   gel('tab-btn-ul').addEventListener('click',function(){switchTab('ul');});
-  gel('tab-admin-btn').addEventListener('click',function(){switchTab('admin');});
-  gel('tab-mis-btn').addEventListener('click',function(){switchTab('mis');});
+  gel('tab-btn-admin').addEventListener('click',function(){switchTab('admin');});
+  gel('tab-btn-mis').addEventListener('click',function(){switchTab('mis');});
   gel('btn-mis-refresh').addEventListener('click',function(){loadMis();});
   gel('mis-search').addEventListener('input',function(){filterMisTable();});
   gel('mis-filter-status').addEventListener('change',function(){filterMisTable();});
