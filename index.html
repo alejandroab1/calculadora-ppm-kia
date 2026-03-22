@@ -295,7 +295,7 @@ async function saveCot(data){
       Cliente: data.cliente,
       ID_Cliente: data.id_cliente,
       Modelo: data.modelo,
-      Configuracion: data.config,
+      Configuracion: data.config.replace(data.modelo,'').trim(),
       Plan: data.plan,
       Precio_PPM: parseFloat(data.ppm)||0,
       Precio_Regular: parseFloat(data.regular)||0,
@@ -402,7 +402,7 @@ function svcTableUL(svcs){
 }
 
 // ── SAVE FORM ──
-function saveForm(){
+function saveForm(plan20label, plan30label, ppm20, regular20, ppm30, regular30){
   return '<div class="save-section">'+
     '<div class="save-section-title">&#128190; Guardar Cotización</div>'+
     '<div class="form-grid-2">'+
@@ -411,12 +411,20 @@ function saveForm(){
       '<div class="form-group"><label class="form-label">ID Cliente</label>'+
       '<input type="text" class="form-input" id="save-idcliente" placeholder="DNI / RUC / Pasaporte"></div>'+
     '</div>'+
+    '<div class="form-group" style="margin-bottom:20px">'+
+      '<label class="form-label">Plan a cotizar</label>'+
+      '<select class="form-select" id="save-plan">'+
+        '<option value="">— Selecciona el plan —</option>'+
+        '<option value="20k" data-ppm="'+ppm20+'" data-regular="'+regular20+'">'+plan20label+' — $'+parseFloat(ppm20).toFixed(2)+'</option>'+
+        '<option value="30k" data-ppm="'+ppm30+'" data-regular="'+regular30+'">'+plan30label+' — $'+parseFloat(ppm30).toFixed(2)+'</option>'+
+      '</select>'+
+    '</div>'+
     '<div class="btn-row">'+
       '<button class="btn-save" id="btn-guardar">&#128190; Guardar en Airtable</button>'+
       '<button class="btn-print" id="btn-imprimir">&#128438; Imprimir</button>'+
     '</div></div>';
 }
-function attachSave(planLabel,modeloAuto,ppm,regular,cfg){
+function attachSave(modelo, modeloAuto, cfg, p20label, ppm20, regular20, p30label, ppm30, regular30){
   var btn=gel('btn-guardar');
   var btnP=gel('btn-imprimir');
   if(btnP)btnP.addEventListener('click',function(){window.print();});
@@ -424,10 +432,17 @@ function attachSave(planLabel,modeloAuto,ppm,regular,cfg){
   btn.addEventListener('click',async function(){
     var cliente=gel('save-cliente')?gel('save-cliente').value.trim():'';
     var idcli=gel('save-idcliente')?gel('save-idcliente').value.trim():'';
+    var planSel=gel('save-plan');
+    var planVal=planSel?planSel.value:'';
     if(!cliente){showToast('Ingresa el nombre del cliente',true);return;}
     if(!idcli){showToast('Ingresa el ID del cliente',true);return;}
+    if(!planVal){showToast('Selecciona el plan a cotizar',true);return;}
+    var selOpt=planSel.options[planSel.selectedIndex];
+    var ppm=parseFloat(selOpt.getAttribute('data-ppm'))||0;
+    var regular=parseFloat(selOpt.getAttribute('data-regular'))||0;
+    var planLabel=planVal==='20k'?p20label:p30label;
     btn.disabled=true;btn.textContent='Guardando...';
-    var ok=await saveCot({cliente:cliente,id_cliente:idcli,modelo:modeloAuto,config:cfg,plan:planLabel,ppm:ppm,regular:regular});
+    var ok=await saveCot({cliente:cliente,id_cliente:idcli,modelo:modelo,config:cfg,plan:planLabel,ppm:ppm,regular:regular});
     if(ok){showToast('Cotizacion guardada exitosamente');btn.textContent='Guardado';}
     else{btn.disabled=false;btn.textContent='Guardar en Airtable';}
   });
@@ -460,10 +475,10 @@ function calcFS(){
     '<div class="plans-grid two-col">'+
     planCard('fs-20k','Plan 20K','badge-fs','0 km → 20,000 km',p20,s20,sv,'cant_20k')+
     planCard('fs-30k','Plan 30K','badge-fs','0 km → 30,000 km',p30,s30,sv,'cant_30k')+
-    '</div>'+saveForm();
+    '</div>'+saveForm('Plan 20K','Plan 30K',p20.ppm||0,p20.precio_usd||0,p30.ppm||0,p30.precio_usd||0);
   var area=gel('fs-results');
   area.style.display='block';area.innerHTML=html;
-  attachSave('Full Service 20K & 30K',pr.modelo_auto,p20.ppm||0,p20.precio_usd||0,cfg);
+  attachSave(m, pr.modelo_auto, cfg, 'Full Service 20K', p20.ppm||0, p20.precio_usd||0, 'Full Service 30K', p30.ppm||0, p30.precio_usd||0);
   area.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
@@ -513,7 +528,7 @@ function calcUL(){
     '</div></div></div>'+saveForm();
   var area=gel('ul-results');
   area.style.display='block';area.innerHTML=html;
-  attachSave('FS + Unlimited '+rango,pfs.modelo_auto,pul.ppm_usd||0,pul.precio_usd||0,cfg);
+  attachSave(m, pfs.modelo_auto, cfg, 'FS + Unlimited '+rango, pul.ppm_usd||0, pul.precio_usd||0, 'FS + Unlimited '+rango, pul.ppm_usd||0, pul.precio_usd||0);
   area.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
