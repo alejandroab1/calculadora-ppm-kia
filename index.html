@@ -291,7 +291,7 @@ body{font-family:'HMKia',Arial,sans-serif;background:var(--kia-gray);color:var(-
       </div>
       <div class="table-wrap">
         <table class="admin-table">
-          <thead><tr><th>Fecha</th><th>Cliente</th><th>ID Cliente</th><th>Modelo</th><th>Plan</th><th>Precio PPM</th><th>Estado</th></tr></thead>
+          <thead><tr><th>N° Cot.</th><th>Fecha</th><th>Cliente</th><th>ID Cliente</th><th>Modelo</th><th>Plan</th><th>Precio PPM</th><th>Estado</th></tr></thead>
           <tbody id="mis-tbody"><tr><td colspan="7" class="loading">Cargando...</td></tr></tbody>
         </table>
       </div>
@@ -321,7 +321,7 @@ body{font-family:'HMKia',Arial,sans-serif;background:var(--kia-gray);color:var(-
       </div>
       <div class="table-wrap">
         <table class="admin-table">
-          <thead><tr><th>Fecha</th><th>Vendedor</th><th>Cliente</th><th>ID Cliente</th><th>Modelo</th><th>Plan</th><th>Precio PPM</th><th>Estado</th></tr></thead>
+          <thead><tr><th>N° Cot.</th><th>Fecha</th><th>Vendedor</th><th>Cliente</th><th>ID Cliente</th><th>Modelo</th><th>Plan</th><th>Precio PPM</th><th>Estado</th></tr></thead>
           <tbody id="admin-tbody"><tr><td colspan="8" class="loading">Cargando...</td></tr></tbody>
         </table>
       </div>
@@ -419,7 +419,7 @@ function cambiarUsuario(){
 }
 async function saveCot(data){
   try{
-    var payload={fields:{Titulo:data.cliente+' - '+data.plan,Vendedor:currentVendedor,Cliente:data.cliente,ID_Cliente:data.id_cliente,Modelo:data.modelo,Configuracion:data.config.replace(data.modelo,'').trim(),Plan:data.plan,Precio_PPM:parseFloat(data.ppm)||0,Precio_Regular:parseFloat(data.regular)||0,Fecha_Cotizacion:new Date().toISOString().split('T')[0],Estado:'Pendiente'}};
+    var payload={fields:{Titulo:'COT-'+(data.cot_num||'0000000')+' · '+data.cliente,Vendedor:currentVendedor,Cliente:data.cliente,ID_Cliente:data.id_cliente,Modelo:data.modelo,Configuracion:data.config.replace(data.modelo,'').trim(),Plan:data.plan,Precio_PPM:parseFloat(data.ppm)||0,Precio_Regular:parseFloat(data.regular)||0,Fecha_Cotizacion:new Date().toISOString().split('T')[0],Estado:'Pendiente',Num_Cotizacion:data.cot_num||'0000000'}};
     var r=await fetch('https://api.airtable.com/v0/'+AT_BASE+'/'+encodeURIComponent(AT_TABLE),{method:'POST',headers:{Authorization:'Bearer '+AT_TOKEN,'Content-Type':'application/json'},body:JSON.stringify(payload)});
     var result=await r.json();
     if(result.error){showToast('Error: '+result.error.message,true);return false;}
@@ -463,7 +463,7 @@ function renderAdminTable(rows){
   gel('admin-tbody').innerHTML=rows.map(function(r){
     var f=r.fields;
     var opts=['Pendiente','Aceptada','Rechazada'].map(function(s){return '<option value="'+s+'"'+(f.Estado===s?' selected':'')+'>'+s+'</option>';}).join('');
-    return '<tr><td style="font-size:12px;white-space:nowrap">'+(f.Fecha_Cotizacion||'—')+'</td><td>'+(f.Vendedor||'—')+'</td><td style="font-weight:600">'+(f.Cliente||'—')+'</td><td>'+(f.ID_Cliente||'—')+'</td><td>'+(f.Modelo||'—')+'</td><td style="font-size:12px">'+(f.Plan||'—')+'</td><td style="color:var(--kia-red);font-weight:700">$'+(f.Precio_PPM?parseFloat(f.Precio_PPM).toFixed(2):'—')+'</td><td><select class="status-select" data-id="'+r.id+'">'+opts+'</select></td></tr>';
+    return '<tr><td style="font-size:12px;font-weight:700;color:var(--fs-color);white-space:nowrap">'+(f.Num_Cotizacion?'#'+f.Num_Cotizacion:'—')+'</td><td style="font-size:12px;white-space:nowrap">'+(f.Fecha_Cotizacion||'—')+'</td><td>'+(f.Vendedor||'—')+'</td><td style="font-weight:600">'+(f.Cliente||'—')+'</td><td>'+(f.ID_Cliente||'—')+'</td><td>'+(f.Modelo||'—')+'</td><td style="font-size:12px">'+(f.Plan||'—')+'</td><td style="color:var(--kia-red);font-weight:700">$'+(f.Precio_PPM?parseFloat(f.Precio_PPM).toFixed(2):'—')+'</td><td><select class="status-select" data-id="'+r.id+'">'+opts+'</select></td></tr>';
   }).join('');
   gel('admin-tbody').querySelectorAll('.status-select').forEach(function(sel){
     sel.addEventListener('change',function(){updEstado(this.getAttribute('data-id'),this.value,loadAdmin);});
@@ -498,7 +498,7 @@ function renderMisTable(rows){
   gel('mis-tbody').innerHTML=rows.map(function(r){
     var f=r.fields;
     var opts=['Pendiente','Aceptada','Rechazada'].map(function(s){return '<option value="'+s+'"'+(f.Estado===s?' selected':'')+'>'+s+'</option>';}).join('');
-    return '<tr><td style="font-size:12px;white-space:nowrap">'+(f.Fecha_Cotizacion||'—')+'</td><td style="font-weight:600">'+(f.Cliente||'—')+'</td><td>'+(f.ID_Cliente||'—')+'</td><td>'+(f.Modelo||'—')+'</td><td style="font-size:12px">'+(f.Plan||'—')+'</td><td style="color:var(--kia-red);font-weight:700">$'+(f.Precio_PPM?parseFloat(f.Precio_PPM).toFixed(2):'—')+'</td><td><select class="status-select" data-id="'+r.id+'">'+opts+'</select></td></tr>';
+    return '<tr><td style="font-size:12px;font-weight:700;color:var(--fs-color);white-space:nowrap">'+(f.Num_Cotizacion?'#'+f.Num_Cotizacion:'—')+'</td><td style="font-size:12px;white-space:nowrap">'+(f.Fecha_Cotizacion||'—')+'</td><td style="font-weight:600">'+(f.Cliente||'—')+'</td><td>'+(f.ID_Cliente||'—')+'</td><td>'+(f.Modelo||'—')+'</td><td style="font-size:12px">'+(f.Plan||'—')+'</td><td style="color:var(--kia-red);font-weight:700">$'+(f.Precio_PPM?parseFloat(f.Precio_PPM).toFixed(2):'—')+'</td><td><select class="status-select" data-id="'+r.id+'">'+opts+'</select></td></tr>';
   }).join('');
   gel('mis-tbody').querySelectorAll('.status-select').forEach(function(sel){
     sel.addEventListener('change',function(){updEstado(this.getAttribute('data-id'),this.value,loadMis);});
@@ -528,7 +528,7 @@ function svcTableUL(svcs){
 }
 function saveForm(p20label,p30label,ppm20,reg20,ppm30,reg30){
   return '<div class="save-section">'+
-    '<div class="save-section-title">Guardar Cotización</div>'+
+    '<div class="save-section-title">Generar Cotización</div>'+
     '<div class="form-grid-2">'+
       '<div class="form-group"><label class="form-label">Nombre del Cliente</label>'+
       '<input type="text" class="form-input" id="save-cliente" placeholder="Nombre completo del cliente"></div>'+
@@ -544,12 +544,11 @@ function saveForm(p20label,p30label,ppm20,reg20,ppm30,reg30){
       '</select>'+
     '</div>'+
     '<div class="btn-row">'+
-      '<button class="btn-save" id="btn-guardar">Guardar cotización</button>'+
-      '<button class="btn-print" id="btn-imprimir">Imprimir</button>'+
+      '<button class="btn-save" id="btn-cotizar">Generar e Imprimir Cotización</button>'+
     '</div></div>';
 }
 function attachSave(modelo,modeloAuto,cfg,p20label,ppm20,reg20,p30label,ppm30,reg30,svcs20,svcs30,svcsUL,isUL){
-  var btn=gel('btn-guardar');var btnP=gel('btn-imprimir');
+  var btn=gel('btn-cotizar');
   if(!btn)return;
   btn.addEventListener('click',async function(){
     var cliente=gel('save-cliente')?gel('save-cliente').value.trim():'';
@@ -562,29 +561,17 @@ function attachSave(modelo,modeloAuto,cfg,p20label,ppm20,reg20,p30label,ppm30,re
     var ppm=parseFloat(selOpt.getAttribute('data-ppm'))||0;
     var regular=parseFloat(selOpt.getAttribute('data-regular'))||0;
     var planLabel=planVal==='20k'?p20label:(planVal==='ul'?p20label:p30label);
-    btn.disabled=true;btn.textContent='Guardando...';
-    var ok=await saveCot({cliente:cliente,id_cliente:idcli,modelo:modelo,config:cfg,plan:planLabel,ppm:ppm,regular:regular});
+    btn.disabled=true;btn.textContent='Generando cotización...';
+    var cotNum=getNextCotNum();
+    var ok=await saveCot({cliente:cliente,id_cliente:idcli,modelo:modelo,config:cfg,plan:planLabel,ppm:ppm,regular:regular,cot_num:cotNum});
     if(ok){
-      showToast('Cotización guardada exitosamente');btn.textContent='✓ Guardado';
-      // Enable print button
-      if(btnP){
-        btnP.style.background='#05141F';btnP.style.color='white';btnP.style.borderColor='#05141F';
-        btnP.textContent='Imprimir / PDF';
-        btnP.onclick=null;
-        var svcsToUse=isUL?svcsUL:(planVal==='20k'?svcs20:svcs30);
-        var vigToUse=planVal==='20k'?'Plan 20K · 2 años':(planVal==='ul'?'Plan Unlimited':' Plan 30K · 3 años');
-        btnP.addEventListener('click',function(){
-          printCotizacion(modeloAuto,planLabel,ppm,regular,30,vigToUse,svcsToUse,cfg);
-        });
-      }
-    } else {btn.disabled=false;btn.textContent='Guardar cotización';}
+      showToast('Cotización generada exitosamente');
+      btn.textContent='✓ Cotización generada';
+      var svcsToUse=isUL?svcsUL:(planVal==='20k'?svcs20:svcs30);
+      var vigToUse=planVal==='20k'?'Plan 20K · 2 años':(planVal==='ul'?'Plan Unlimited':'Plan 30K · 3 años');
+      printCotizacion(modeloAuto,planLabel,ppm,regular,30,vigToUse,svcsToUse,cfg,cotNum,cliente);
+    } else {btn.disabled=false;btn.textContent='Generar e Imprimir Cotización';}
   });
-  // Print disabled until saved
-  if(btnP){
-    btnP.addEventListener('click',function(){
-      showToast('Primero guarda la cotización',true);
-    });
-  }
 }
 function planCard(hClass,tag,bClass,range,plan,savings,svcs,cantKey){
   return '<div class="plan-card">'+
@@ -685,13 +672,14 @@ function getNextCotNum(){
   return next.toString().padStart(7,'0');
 }
 
-function printCotizacion(modeloAuto,planLabel,ppm,regular,descuento,vigencia,servicios,cfg){
+function printCotizacion(modeloAuto,planLabel,ppm,regular,descuento,vigencia,servicios,cfg,cotNum,clienteNombreParam){
   var cotNum=getNextCotNum();
   var today=new Date();
   var fechaStr=today.toLocaleDateString('es-PE',{day:'2-digit',month:'long',year:'numeric'});
   var fechaVig=new Date(today.getTime()+30*24*60*60*1000).toLocaleDateString('es-PE',{day:'2-digit',month:'long',year:'numeric'});
   var clienteEl=gel('save-cliente');
-  var clienteNombre=clienteEl&&clienteEl.value.trim()?clienteEl.value.trim():'[Cliente]';
+  var clienteNombre=clienteNombreParam||(clienteEl&&clienteEl.value.trim()?clienteEl.value.trim():'[Cliente]');
+  if(!cotNum)cotNum=getNextCotNum();
   var svcRows=servicios.map(function(s){
     return '<tr><td style="padding:7px 12px;border-bottom:1px solid #F5F6F7">'+s.nombre+'</td><td style="padding:7px 12px;border-bottom:1px solid #F5F6F7;text-align:center;font-weight:700;color:#BB162B">'+s.cant+'x</td></tr>';
   }).join('');
@@ -710,10 +698,10 @@ function printCotizacion(modeloAuto,planLabel,ppm,regular,descuento,vigencia,ser
   overlay.innerHTML=closeBtn+printBtn+'<div id="print-doc" style="background:white;width:210mm;min-height:297mm;padding:18mm;font-family:Arial,sans-serif;color:#1A1A1A;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.5)">'+
 
     '<div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:16px;border-bottom:3px solid #BB162B;margin-bottom:24px">'+
-    '<img src="'+LOGO+'" style="height:70px;object-fit:contain" alt="KIA">'+
+    '<img src="'+LOGO+'" style="height:110px;object-fit:contain" alt="KIA">'+
     '<div style="text-align:right">'+
-    '<div style="font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#BB162B;margin-bottom:4px">Cotización de Servicio</div>'+
-    '<div style="font-size:28px;font-weight:800;color:#05141F;letter-spacing:2px;font-family:Georgia,serif">N° '+cotNum+'</div>'+
+    '<div style="font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:#1D4ED8;margin-bottom:4px">Cotización de Servicio</div>'+
+    '<div style="font-size:20px;font-weight:800;color:#05141F;letter-spacing:2px">N° '+cotNum+'</div>'+
     '<div style="font-size:12px;color:#4A5568;margin-top:4px">'+fechaStr+'</div>'+
     '</div></div>'+
 
@@ -770,11 +758,11 @@ function printCotizacion(modeloAuto,planLabel,ppm,regular,descuento,vigencia,ser
 
     '<div style="margin-top:auto;padding-top:20px;border-top:2px solid #E8EAED;display:flex;justify-content:space-between;align-items:flex-end">'+
     '<div>'+
-    '<div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#BB162B;margin-bottom:8px">Datos de contacto</div>'+
+    '<div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#1D4ED8;margin-bottom:8px">Datos de contacto</div>'+
     '<div style="font-size:14px;font-weight:700;color:#05141F;margin-bottom:4px">'+currentVendedor+'</div>'+
-    '<div style="font-size:12px;color:#4A5568;line-height:1.9">📱 '+currentCelular+'<br>✉ '+currentCorreo+'<br><span style="color:#BB162B;font-weight:600">🌐 www.santaclara.com.pe</span></div>'+
+    '<div style="font-size:12px;color:#4A5568;line-height:1.9">📱 '+currentCelular+'<br>✉ '+currentCorreo+'<br><a href="https://www.santaclara.com.pe" target="_blank" style="color:#1D4ED8;font-weight:600;text-decoration:underline">🌐 www.santaclara.com.pe</a></div>'+
     '</div>'+
-    '<img src="'+LOGO+'" style="height:50px;object-fit:contain;opacity:0.7" alt="KIA">'+
+    '<img src="'+LOGO+'" style="height:70px;object-fit:contain;opacity:0.8" alt="KIA">'+
     '</div>'+
 
     '</div>';
