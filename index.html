@@ -433,8 +433,16 @@ function attachSave(planLabel,modeloAuto,ppm,regular,cfg){
 // ── CALC FS ──
 function calcFS(){
   var m=gel('fs-modelo').value,mo=gel('fs-motor').value,t=gel('fs-trans').value,f=gel('fs-freq').value,c=gel('fs-comb').value;
-  if(!m||!mo||!t||!f){showToast('Completa todos los campos',true);return;}
-  if(gel('fs-comb').disabled){showToast('Completa todos los campos',true);return;}
+  // Solo validar campos visibles
+  var motorGrp=gel('fs-motor-group');
+  var transGrp=gel('fs-trans-group');
+  var combGrp=gel('fs-comb-group');
+  var motorVisible=!motorGrp||motorGrp.style.display!=='none';
+  var transVisible=!transGrp||transGrp.style.display!=='none';
+  if(!m){showToast('Selecciona un modelo',true);return;}
+  if(motorVisible&&!mo){showToast('Selecciona el motor',true);return;}
+  if(transVisible&&!t){showToast('Selecciona la transmision',true);return;}
+  if(!f){showToast('Selecciona la frecuencia',true);return;}
   var key=m+'|'+mo+'|'+t+'|'+f+'|'+c;
   var pr=D.precios_fs[key],sv=D.servicios_fs[key]||[];
   if(!pr){showToast('Sin datos para esta combinacion',true);return;}
@@ -459,8 +467,15 @@ function calcFS(){
 // ── CALC UL ──
 function calcUL(){
   var m=gel('ul-modelo').value,mo=gel('ul-motor').value,t=gel('ul-trans').value,f=gel('ul-freq').value,c=gel('ul-comb').value,rango=gel('ul-rango').value;
-  if(!m||!mo||!t||!f||!rango){showToast('Completa todos los campos',true);return;}
-  if(gel('ul-comb').disabled){showToast('Completa todos los campos',true);return;}
+  var motorGrpU=gel('ul-motor-group');
+  var transGrpU=gel('ul-trans-group');
+  var motorVisibleU=!motorGrpU||motorGrpU.style.display!=='none';
+  var transVisibleU=!transGrpU||transGrpU.style.display!=='none';
+  if(!m){showToast('Selecciona un modelo',true);return;}
+  if(motorVisibleU&&!mo){showToast('Selecciona el motor',true);return;}
+  if(transVisibleU&&!t){showToast('Selecciona la transmision',true);return;}
+  if(!f){showToast('Selecciona la frecuencia',true);return;}
+  if(!rango){showToast('Selecciona el rango Unlimited',true);return;}
   var fsk=m+'|'+mo+'|'+t+'|'+f+'|'+c,ulk=fsk+'|'+rango;
   var pfs=D.precios_fs[fsk],pul=D.precios_ul[ulk];
   var sfs=D.servicios_fs[fsk]||[],sul=D.servicios_ul[ulk]||[];
