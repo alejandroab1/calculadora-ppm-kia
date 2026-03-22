@@ -385,16 +385,19 @@ function populateUL(){setOpts(gel('ul-modelo'),Object.keys(D.cascade).sort(),'�
 // ── SERVICES ──
 function svcTable(svcs,key){
   if(!svcs||!svcs.length)return '<p style="color:var(--kia-silver);font-size:13px">Sin datos</p>';
-  return '<table class="services-table">'+svcs.map(function(s){
+  var filtered=svcs.filter(function(s){return (s[key]||0)>0;});
+  if(!filtered.length)return '<p style="color:var(--kia-silver);font-size:13px">Sin servicios registrados</p>';
+  return '<table class="services-table">'+filtered.map(function(s){
     var c=s[key]||0;
-    return '<tr class="'+(c===0?'svc-zero':'')+'"><td>'+s.servicio+'</td><td>'+(c>0?c+'x':'—')+'</td></tr>';
+    return '<tr><td>'+s.servicio+'</td><td>'+c+'x</td></tr>';
   }).join('')+'</table>';
 }
 function svcTableUL(svcs){
   if(!svcs||!svcs.length)return '<p style="color:var(--kia-silver);font-size:13px">Sin datos</p>';
-  return '<table class="services-table">'+svcs.map(function(s){
-    var c=s.cant||0;
-    return '<tr class="'+(c===0?'svc-zero':'')+'"><td>'+s.servicio+'</td><td>'+(c>0?c+'x':'—')+'</td></tr>';
+  var filtered=svcs.filter(function(s){return (s.cant||0)>0;});
+  if(!filtered.length)return '<p style="color:var(--kia-silver);font-size:13px">Sin servicios registrados</p>';
+  return '<table class="services-table">'+filtered.map(function(s){
+    return '<tr><td>'+s.servicio+'</td><td>'+s.cant+'x</td></tr>';
   }).join('')+'</table>';
 }
 
