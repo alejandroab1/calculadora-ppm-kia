@@ -533,7 +533,7 @@ function filterMisTable(){
 }
 
 function reprCotMis(recordId){
-  fetch('https://api.airtable.com/v0/'+AT_BASE+'/'+encodeURIComponent(AT_TABLE)+'/'+recordId).then(function(r){return r.json();}).then(function(rec){
+  fetch('https://api.airtable.com/v0/'+AT_BASE+'/'+encodeURIComponent(AT_TABLE)+'/'+recordId,{headers:{Authorization:'Bearer '+AT_TOKEN}}).then(function(r){return r.json();}).then(function(rec){
     var f=rec.fields;
     if(!f){showToast('No se pudo cargar la cotizacion',true);return;}
     var modelo=f.Modelo||'';
