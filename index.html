@@ -329,7 +329,7 @@ function printCotizacion(modeloAuto,planLabel,ppm,regular,descuento,vigencia,ser
     var psOv=document.getElementById('print-style-override');if(psOv)psOv.remove();
   });}
   var psMedia=document.createElement('style');psMedia.id='print-style';
-  psMedia.textContent='@media print{body>*:not(#print-overlay){display:none!important}#print-overlay{position:static!important;background:white!important;padding:0!important}#print-overlay button{display:none!important}#print-doc{box-shadow:none!important;padding:15mm!important}}';
+  psMedia.textContent='@page{margin:0;size:A4;}@media print{body>*:not(#print-overlay){display:none!important}#print-overlay{position:static!important;background:white!important;padding:0!important}#print-overlay button{display:none!important}#print-doc{box-shadow:none!important;padding:15mm!important}}';
   document.head.appendChild(psMedia);
 }
 
@@ -521,15 +521,13 @@ function reprCotMis(recordId){
     var cliente=f.Cliente||'';
     var kmStr='';var svcs=[];var vig='';
 
-    // Parse cfg into key: strip UL suffix first
-    var ulRango='';
-    var cfgBase=cfg;
+    // Parse cfg into key
+    var ulRango='';var cfgBase=cfg;
     if(cfg.indexOf(' UL ')>=0){
       var ulParts=cfg.split(' UL ');
       cfgBase=ulParts[0].trim();
       ulRango=ulParts[1]?ulParts[1].trim():'';
     }
-    // Parse motor|trans|freq|comb from cfgBase
     var cfgParts=cfgBase.trim().split(' ');
     var freqIdx=-1;
     for(var i=0;i<cfgParts.length;i++){if(/^\d+K$/.test(cfgParts[i])){freqIdx=i;break;}}
@@ -546,20 +544,23 @@ function reprCotMis(recordId){
     var fsKey=modelo+'|'+motor+'|'+trans+'|'+freq+'|'+comb;
 
     if(plan.indexOf('Unlimited')>=0){
-      // UL plan
       var ulKey=fsKey+'|'+ulRango;
       var pul=D.precios_ul[ulKey];
       if(pul){kmStr=pul.km||'';vig=pul.vigencia||'';}
-      svcs=[];
+      // UL services from servicios_ul
+      var svcUL=D.servicios_ul[ulKey]||[];
+      svcs=svcUL.filter(function(s){return(s.cant||0)>0;}).map(function(s){return{nombre:s.servicio,cant:s.cant};});
     } else {
-      // FS plan
       var pfs=D.precios_fs[fsKey];
+      var is20k=plan.indexOf('20K')>=0;
       if(pfs){
-        if(plan.indexOf('20K')>=0){kmStr=pfs.plan_20k.km||'';vig=pfs.plan_20k.vigencia||'';}
+        if(is20k){kmStr=pfs.plan_20k.km||'';vig=pfs.plan_20k.vigencia||'';}
         else{kmStr=pfs.plan_30k.km||'';vig=pfs.plan_30k.vigencia||'';}
       }
+      // FS services - use cant_20k or cant_30k
       var svcArr=D.servicios_fs[fsKey]||[];
-      svcs=svcArr.filter(function(s){return(s.cant||0)>0;}).map(function(s){return{nombre:s.servicio,cant:s.cant};});
+      var cantField=is20k?'cant_20k':'cant_30k';
+      svcs=svcArr.filter(function(s){return(s[cantField]||0)>0;}).map(function(s){return{nombre:s.servicio,cant:s[cantField]};});
     }
     printCotizacion(modelo,plan,ppm,reg,30,vig,svcs,cfg,cot,cliente,'','',kmStr);
   }).catch(function(e){showToast('Error: '+e.message,true);});
