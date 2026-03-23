@@ -332,7 +332,7 @@ function printCotizacion(modeloAuto,planLabel,ppm,regular,descuento,vigencia,ser
     var psOv=document.getElementById('print-style-override');if(psOv)psOv.remove();
   });}
   var psMedia=document.createElement('style');psMedia.id='print-style';
-  psMedia.textContent='@page{margin:0;size:A4;}@media print{body>*:not(#print-overlay){display:none!important}#print-overlay{position:fixed!important;top:0!important;left:0!important;width:100%!important;height:100%!important;background:white!important;padding:0!important;overflow:visible!important;z-index:99999!important}#print-overlay button{display:none!important}#print-doc{box-shadow:none!important;width:210mm!important;padding:18mm!important;margin:0 auto!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}* {-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}';
+  psMedia.textContent='@page{margin:0;size:A4;}@media print{html,body{width:210mm;}body>*:not(#print-overlay){display:none!important}#print-overlay{position:absolute!important;top:0!important;left:0!important;width:210mm!important;background:white!important;padding:0!important;overflow:visible!important}#print-overlay button{display:none!important}#print-doc{box-shadow:none!important;width:210mm!important;padding:15mm 18mm!important;margin:0!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}';
   document.head.appendChild(psMedia);
 }
 
