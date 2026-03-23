@@ -234,7 +234,7 @@ body{font-family:'Barlow',Arial,sans-serif;background:var(--kia-gray);color:var(
       </div>
       <div class="table-wrap">
         <table class="admin-table">
-          <thead><tr><th>N° Cot.</th><th>Fecha</th><th>Cliente</th><th>ID Cliente</th><th>Modelo</th><th>Plan</th><th>Precio PPM</th><th>Estado</th></tr></thead>
+          <thead><tr><th>N° Cot.</th><th>Fecha</th><th>Cliente</th><th>ID Cliente</th><th>Modelo</th><th>Plan</th><th>Precio PPM</th><th>Estado</th><th></th></tr></thead>
           <tbody id="mis-tbody"><tr><td colspan="8" class="loading">Abre la pestaña para ver tus cotizaciones</td></tr></tbody>
         </table>
       </div>
@@ -482,7 +482,7 @@ function renderAdminTable(rows){
   });
 }
 async function loadMis(){
-  gel('mis-tbody').innerHTML='<tr><td colspan="8" class="loading">Cargando...</td></tr>';
+  gel('mis-tbody').innerHTML='<tr><td colspan="9" class="loading">Cargando...</td></tr>';
   try{
     var filter=encodeURIComponent("{Vendedor}='"+currentVendedor+"'");
     var url='https://api.airtable.com/v0/'+AT_BASE+'/'+encodeURIComponent(AT_TABLE)+'?sort[0][field]=Fecha_Cotizacion&sort[0][direction]=desc&pageSize=100&filterByFormula='+filter;
@@ -505,6 +505,52 @@ function filterMisTable(){
     return mq&&(!st||f.Estado===st);
   }));
 }
+
+function reprCotMis(recordId){
+  fetch('https://api.airtable.com/v0/'+AT_BASE+'/'+encodeURIComponent(AT_TABLE)+'/'+recordId,{
+    headers:{Authorization:'Bearer '+AT_TOKEN}
+  }).then(function(r){return r.json();}).then(function(rec){
+    var f=rec.fields;
+    if(!f){showToast('No se pudo cargar la cotización',true);return;}
+    // Rebuild servicios from data if available
+    var modelo=f.Modelo||'';
+    var plan=f.Plan||'';
+    var cfg=f.Configuracion||'';
+    var ppm=parseFloat(f.Precio_PPM)||0;
+    var reg=parseFloat(f.Precio_Regular)||0;
+    var cot=f.Num_Cotizacion?String(f.Num_Cotizacion):'';
+    var cliente=f.Cliente||'';
+    // Find km and servicios from data
+    var kmStr='';var svcs=[];var vig='';
+    // Try to find in precios_fs
+    var fsKeys=Object.keys(D.precios_fs).filter(function(k){
+      return D.precios_fs[k].modelo_auto===modelo||k.split('|')[0]===modelo;
+    });
+    if(fsKeys.length>0){
+      var pr=D.precios_fs[fsKeys[0]];
+      if(plan.indexOf('20K')>=0){kmStr=pr.plan_20k.km||'';vig=pr.plan_20k.vigencia||'';}
+      else{kmStr=pr.plan_30k.km||'';vig=pr.plan_30k.vigencia||'';}
+      // Build svcs from servicios_fs
+      var fsk=fsKeys[0];
+      var svcArr=D.servicios_fs[fsk]||[];
+      svcs=svcArr.filter(function(s){return(s.cant||0)>0;}).map(function(s){return{nombre:s.servicio,cant:s.cant};});
+    }
+    // Try UL
+    var ulKeys=Object.keys(D.precios_ul).filter(function(k){
+      return D.precios_ul[k].modelo_auto===modelo||k.split('|')[0]===modelo;
+    });
+    if(plan.indexOf('Unlimited')>=0&&ulKeys.length>0){
+      var rangoMatch=plan.replace('Unlimited ','').trim();
+      var ulk=ulKeys.filter(function(k){return D.precios_ul[k].rango===rangoMatch;})[0]||ulKeys[0];
+      if(ulk){
+        kmStr=D.precios_ul[ulk].km||'';
+        vig=D.precios_ul[ulk].vigencia||'';
+        svcs=[];
+      }
+    }
+    printCotizacion(modelo,plan,ppm,reg,30,vig,svcs,cfg,cot,cliente,'','',kmStr);
+  }).catch(function(e){showToast('Error al cargar: '+e.message,true);});
+}
 function renderMisTable(rows){
   var PAGE_SIZE=15;
   var misPage=parseInt(localStorage.getItem('mis_page')||'0');
@@ -513,14 +559,14 @@ function renderMisTable(rows){
   var pageRows=rows.slice(misPage*PAGE_SIZE,(misPage+1)*PAGE_SIZE);
 
   if(!rows.length){
-    gel('mis-tbody').innerHTML='<tr><td colspan="8" class="empty-state">No tienes cotizaciones aún</td></tr>';
+    gel('mis-tbody').innerHTML='<tr><td colspan="9" class="empty-state">No tienes cotizaciones aún</td></tr>';
     gel('mis-pagination').innerHTML='';
     return;
   }
   gel('mis-tbody').innerHTML=pageRows.map(function(r){
     var f=r.fields;
     var opts=['Pendiente','Aceptada','Rechazada'].map(function(s){return '<option value="'+s+'"'+(f.Estado===s?' selected':'')+'>'+s+'</option>';}).join('');
-    return '<tr><td style="font-size:12px;font-weight:700;color:#1D4ED8;white-space:nowrap">'+(f.Num_Cotizacion?'#'+f.Num_Cotizacion:'—')+'</td><td style="font-size:12px;white-space:nowrap">'+(f.Fecha_Cotizacion||'—')+'</td><td style="font-weight:600">'+(f.Cliente||'—')+'</td><td>'+(f.ID_Cliente||'—')+'</td><td>'+(f.Modelo||'—')+'</td><td style="font-size:12px">'+(f.Plan||'—')+'</td><td style="color:var(--kia-red);font-weight:700">$'+(f.Precio_PPM?parseFloat(f.Precio_PPM).toFixed(2):'—')+'</td><td><select class="status-select" data-id="'+r.id+'">'+opts+'</select></td></tr>';
+    return '<tr><td style="font-size:12px;font-weight:700;color:#1D4ED8;white-space:nowrap">'+(f.Num_Cotizacion?'#'+f.Num_Cotizacion:'—')+'</td><td style="font-size:12px;white-space:nowrap">'+(f.Fecha_Cotizacion||'—')+'</td><td style="font-weight:600">'+(f.Cliente||'—')+'</td><td>'+(f.ID_Cliente||'—')+'</td><td>'+(f.Modelo||'—')+'</td><td style="font-size:12px">'+(f.Plan||'—')+'</td><td style="color:var(--kia-red);font-weight:700">$'+(f.Precio_PPM?parseFloat(f.Precio_PPM).toFixed(2):'—')+'</td><td><select class="status-select" data-id="'+r.id+'">'+opts+'</select></td>'+(f.Estado==='Pendiente'?'<td><button onclick="reprCotMis(\''+r.id+'\')" style="background:#05141F;color:white;border:none;padding:5px 10px;border-radius:3px;cursor:pointer;font-size:13px" title="Ver PDF">📄</button></td>':'<td></td>')+'</tr>';
   }).join('');
 
   gel('mis-tbody').querySelectorAll('.status-select').forEach(function(sel){
