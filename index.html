@@ -302,7 +302,7 @@ function getKmList(freq,maxKmStr){
   }
   return kms.map(function(k){return (k/1000)+'K';});
 }
-function printCotizacion(modeloAuto,planLabel,ppm,regular,descuento,vigencia,servicios,cfg,cotNum,clienteNombreParam){
+function printCotizacion(modeloAuto,planLabel,ppm,regular,descuento,vigencia,servicios,cfg,cotNum,clienteNombreParam,freq,rangoUL){
   if(!cotNum)cotNum=getNextCotNum();
   var clienteEl=gel('save-cliente');
   var clienteNombre=clienteNombreParam||(clienteEl&&clienteEl.value.trim()?clienteEl.value.trim():'[Cliente]');
@@ -316,7 +316,7 @@ function printCotizacion(modeloAuto,planLabel,ppm,regular,descuento,vigencia,ser
   }
   if(rangoUL){var _rp=rangoUL.split('-');if(_rp.length>1)_maxKm=_rp[1].trim();}
   var kmList=getKmList(_freq,_maxKm);
-  var kmStr=kmList.join(' · ');
+  var kmStr=kmList.join(' - ');
   var today=new Date();
   var fechaStr=today.toLocaleDateString('es-PE',{day:'2-digit',month:'long',year:'numeric'});
   var fechaVig=new Date(today.getTime()+30*24*60*60*1000).toLocaleDateString('es-PE',{day:'2-digit',month:'long',year:'numeric'});
@@ -630,7 +630,7 @@ function calcUL(){
   if(mg&&mg.style.display!=='none'&&!mo){showToast('Selecciona el motor',true);return;}
   if(tg&&tg.style.display!=='none'&&!t){showToast('Selecciona la transmisión',true);return;}
   if(!f){showToast('Selecciona la frecuencia',true);return;}
-  if(!rango){showToast('Selecciona el rango Unlimited',true);return;}
+  if(!rango){showToast('Este modelo no tiene plan Unlimited disponible',true);return;}
   var fsk=m+'|'+mo+'|'+t+'|'+f+'|'+c,ulk=fsk+'|'+rango;
   var pfs=D.precios_fs[fsk],pul=D.precios_ul[ulk];
   var sfs=D.servicios_fs[fsk]||[],sul=D.servicios_ul[ulk]||[];
@@ -718,7 +718,7 @@ window.addEventListener('load',function(){
   gel('ul-freq').addEventListener('change',function(){
     var m=gel('ul-modelo').value,mo=gel('ul-motor').value,t=gel('ul-trans').value,f=this.value;if(!f)return;
     var combs=D.cascade[m][mo][t][f];
-    if(combs.length===1&&combs[0]===''){gel('ul-comb').value='';gel('ul-comb').disabled=false;hideField('ul-comb-group');var rangos=D.ul_rangos[m+'|'+mo+'|'+t+'|'+f+'|']||[];rangos.length?setOpts(gel('ul-rango'),rangos.sort(),'— Rango Unlimited —'):resetSel(gel('ul-rango'),'— Sin rangos —');}
+    if(combs.length===1&&combs[0]===''){gel('ul-comb').value='';gel('ul-comb').disabled=false;hideField('ul-comb-group');var rangos=D.ul_rangos[m+'|'+mo+'|'+t+'|'+f+'|']||[];if(rangos.length){setOpts(gel('ul-rango'),rangos.sort(),'— Rango Unlimited —');if(rangos.length===1)gel('ul-rango').value=rangos[0];}else{resetSel(gel('ul-rango'),'— Sin rangos —');}}
     else{showField('ul-comb-group');setOpts(gel('ul-comb'),combs,'— Combustible —');resetSel(gel('ul-rango'));}
   });
   gel('ul-comb').addEventListener('change',function(){
@@ -736,4 +736,6 @@ window.addEventListener('load',function(){
 
 </script>
 </body>
-</html>
+</html
+}catch(e){console.error('PDF error:',e.message,e.stack);showToast('Error PDF: '+e.message,true);}}
+>
