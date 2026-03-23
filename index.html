@@ -386,9 +386,10 @@ async function saveCot(data){
       Precio_PPM:parseFloat(data.ppm)||0,
       Precio_Regular:parseFloat(data.regular)||0,
       Fecha_Cotizacion:new Date().toISOString().split('T')[0],
-      Estado:'Pendiente',
-      Num_Cotizacion:data.cot_num?Number(data.cot_num):null
+      Estado:'Pendiente'
     };
+    // Try adding Num_Cotizacion separately - field may need recreation in Airtable
+    if(data.cot_num) fields['Num_Cotizacion']=Number(data.cot_num);
     var payload={fields:fields};
     var atUrl='https://api.airtable.com/v0/'+AT_BASE+'/'+encodeURIComponent(AT_TABLE);console.log('AT URL:',atUrl,'payload:',JSON.stringify(payload));var r=await fetch(atUrl,{
       method:'POST',
