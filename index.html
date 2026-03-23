@@ -326,11 +326,11 @@ function printCotizacion(modeloAuto,planLabel,ppm,regular,descuento,vigencia,ser
   var btnClose=document.getElementById('btn-close-cot');
   if(btnClose){btnClose.addEventListener('click',function(){
     var ov=document.getElementById('print-overlay');if(ov)ov.remove();
-    var ps=document.getElementById('print-style-override');if(ps)ps.remove();
+    var psOv=document.getElementById('print-style-override');if(psOv)psOv.remove();
   });}
-  var ps=document.createElement('style');ps.id='print-style';
-  ps.textContent='@media print{body>*:not(#print-overlay){display:none!important}#print-overlay{position:static!important;background:white!important;padding:0!important}#print-overlay button{display:none!important}#print-doc{box-shadow:none!important;padding:15mm!important}}';
-  document.head.appendChild(ps);
+  var psMedia=document.createElement('style');psMedia.id='print-style';
+  psMedia.textContent='@media print{body>*:not(#print-overlay){display:none!important}#print-overlay{position:static!important;background:white!important;padding:0!important}#print-overlay button{display:none!important}#print-doc{box-shadow:none!important;padding:15mm!important}}';
+  document.head.appendChild(psMedia);
 }
 
 function gel(id){return document.getElementById(id);}
