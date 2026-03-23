@@ -157,7 +157,7 @@ body{font-family:'Barlow',Arial,sans-serif;background:var(--kia-gray);color:var(
   </header>
     <div class="tabs-bar">
     <button class="tab-btn tab-fs active" id="tab-btn-fs">Full Service</button>
-    <button class="tab-btn tab-ul" id="tab-btn-ul">FS + Unlimited</button>
+    <button class="tab-btn tab-ul" id="tab-btn-ul">Unlimited</button>
     <button class="tab-btn tab-mis" id="tab-btn-mis" style="display:none">Mis Cotizaciones</button>
     <button class="tab-btn tab-admin" id="tab-btn-admin" style="display:none">Administración</button>
   </div>
@@ -188,8 +188,8 @@ body{font-family:'Barlow',Arial,sans-serif;background:var(--kia-gray);color:var(
 
     <div class="tab-content" id="tab-ul">
       <div class="page-header">
-        <div class="page-title">Full Service <span>+ Unlimited</span></div>
-        <div class="page-subtitle">Planes combinados · Selecciona el vehículo y el rango Unlimited</div>
+        <div class="page-title">Unlimited <span>Plan</span></div>
+        <div class="page-subtitle">Plan Unlimited · Selecciona el vehículo y el rango Unlimited</div>
       </div>
       <div class="form-card">
         <div class="form-grid">
@@ -614,12 +614,7 @@ function calcUL(){
   var s30=p30.precio_usd&&p30.ppm?p30.precio_usd-p30.ppm:null;
   var sul_s=pul.precio_usd&&pul.ppm_usd?pul.precio_usd-pul.ppm_usd:null;
   var cfg=m+(mo?' '+mo:'')+(t?' '+t:'')+(f?' '+f:'')+(c?' '+c:'')+' UL '+rango;
-  var html='<div class="results-header"><div><div class="results-car-name">'+pfs.modelo_auto+'</div><div class="results-car-sub">FS + Unlimited '+rango+'</div></div></div>'+
-    '<div class="combined-section-title">Planes Full Service</div>'+
-    '<div class="plans-grid two-col">'+
-    planCard('fs-20k','Full Service 20K','badge-fs','0 → 20,000 km',p20,s20,sfs,'cant_20k')+
-    planCard('fs-30k','Full Service 30K','badge-fs','0 → 30,000 km',p30,s30,sfs,'cant_30k')+
-    '</div><div class="combined-section-title">Plan Unlimited · '+rango+'</div>'+
+  var html='<div class="results-header"><div><div class="results-car-name">'+pfs.modelo_auto+'</div><div class="results-car-sub">Plan Unlimited · '+rango+'</div></div></div>'+
     '<div class="plans-grid"><div class="plan-card">'+
     '<div class="plan-card-header ul"><div class="plan-tag">'+pul.paquete+'</div><span class="plan-range-badge badge-ul">'+rango+'</span></div>'+
     '<div class="plan-card-body"><div class="price-row"><div><div class="price-label">Precio PPM</div><div class="price-sub">Recargo: '+(pul.recargo||0)+'%</div></div>'+
