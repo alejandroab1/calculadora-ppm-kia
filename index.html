@@ -511,8 +511,7 @@ function reprCotMis(recordId){
     headers:{Authorization:'Bearer '+AT_TOKEN}
   }).then(function(r){return r.json();}).then(function(rec){
     var f=rec.fields;
-    if(!f){showToast('No se pudo cargar la cotización',true);return;}
-    // Rebuild servicios from data if available
+    if(!f){showToast('No se pudo cargar la cotizacion',true);return;}
     var modelo=f.Modelo||'';
     var plan=f.Plan||'';
     var cfg=f.Configuracion||'';
@@ -520,37 +519,52 @@ function reprCotMis(recordId){
     var reg=parseFloat(f.Precio_Regular)||0;
     var cot=f.Num_Cotizacion?String(f.Num_Cotizacion):'';
     var cliente=f.Cliente||'';
-    // Find km and servicios from data
     var kmStr='';var svcs=[];var vig='';
-    // Try to find in precios_fs
-    var fsKeys=Object.keys(D.precios_fs).filter(function(k){
-      return D.precios_fs[k].modelo_auto===modelo||k.split('|')[0]===modelo;
-    });
-    if(fsKeys.length>0){
-      var pr=D.precios_fs[fsKeys[0]];
-      if(plan.indexOf('20K')>=0){kmStr=pr.plan_20k.km||'';vig=pr.plan_20k.vigencia||'';}
-      else{kmStr=pr.plan_30k.km||'';vig=pr.plan_30k.vigencia||'';}
-      // Build svcs from servicios_fs
-      var fsk=fsKeys[0];
-      var svcArr=D.servicios_fs[fsk]||[];
+
+    // Parse cfg into key: strip UL suffix first
+    var ulRango='';
+    var cfgBase=cfg;
+    if(cfg.indexOf(' UL ')>=0){
+      var ulParts=cfg.split(' UL ');
+      cfgBase=ulParts[0].trim();
+      ulRango=ulParts[1]?ulParts[1].trim():'';
+    }
+    // Parse motor|trans|freq|comb from cfgBase
+    var cfgParts=cfgBase.trim().split(' ');
+    var freqIdx=-1;
+    for(var i=0;i<cfgParts.length;i++){if(/^\d+K$/.test(cfgParts[i])){freqIdx=i;break;}}
+    var motor='',trans='',freq='',comb='';
+    if(freqIdx>=0){
+      freq=cfgParts[freqIdx];
+      var before=cfgParts.slice(0,freqIdx);
+      var after=cfgParts.slice(freqIdx+1);
+      if(before.length===0){motor='';trans='';}
+      else if(before.length===1){motor=before[0];trans='';}
+      else{motor=before[0];trans=before[1];}
+      comb=after.join(' ');
+    }
+    var fsKey=modelo+'|'+motor+'|'+trans+'|'+freq+'|'+comb;
+
+    if(plan.indexOf('Unlimited')>=0){
+      // UL plan
+      var ulKey=fsKey+'|'+ulRango;
+      var pul=D.precios_ul[ulKey];
+      if(pul){kmStr=pul.km||'';vig=pul.vigencia||'';}
+      svcs=[];
+    } else {
+      // FS plan
+      var pfs=D.precios_fs[fsKey];
+      if(pfs){
+        if(plan.indexOf('20K')>=0){kmStr=pfs.plan_20k.km||'';vig=pfs.plan_20k.vigencia||'';}
+        else{kmStr=pfs.plan_30k.km||'';vig=pfs.plan_30k.vigencia||'';}
+      }
+      var svcArr=D.servicios_fs[fsKey]||[];
       svcs=svcArr.filter(function(s){return(s.cant||0)>0;}).map(function(s){return{nombre:s.servicio,cant:s.cant};});
     }
-    // Try UL
-    var ulKeys=Object.keys(D.precios_ul).filter(function(k){
-      return D.precios_ul[k].modelo_auto===modelo||k.split('|')[0]===modelo;
-    });
-    if(plan.indexOf('Unlimited')>=0&&ulKeys.length>0){
-      var rangoMatch=plan.replace('Unlimited ','').trim();
-      var ulk=ulKeys.filter(function(k){return D.precios_ul[k].rango===rangoMatch;})[0]||ulKeys[0];
-      if(ulk){
-        kmStr=D.precios_ul[ulk].km||'';
-        vig=D.precios_ul[ulk].vigencia||'';
-        svcs=[];
-      }
-    }
     printCotizacion(modelo,plan,ppm,reg,30,vig,svcs,cfg,cot,cliente,'','',kmStr);
-  }).catch(function(e){showToast('Error al cargar: '+e.message,true);});
+  }).catch(function(e){showToast('Error: '+e.message,true);});
 }
+
 function renderMisTable(rows){
   var PAGE_SIZE=15;
   var misPage=parseInt(localStorage.getItem('mis_page')||'0');
