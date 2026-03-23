@@ -603,7 +603,7 @@ function saveForm(p20label,p30label,ppm20,reg20,ppm30,reg30){
     '</select></div>'+
     '<div class="btn-row"><button class="btn-cotizar" id="btn-cotizar">Generar e Imprimir Cotización</button></div></div>';
 }
-function attachSave(modelo,modeloAuto,cfg,p20label,ppm20,reg20,p30label,ppm30,reg30,svcs20,svcs30,svcsUL,isUL,freq,rangoUL,km20,km30,kmUL){
+function attachSave(modelo,modeloAuto,cfg,p20label,ppm20,reg20,p30label,ppm30,reg30,svcs20,svcs30,svcsUL,isUL,freq,rangoUL,km20,km30,kmUL,vigUL){
   var _container=gel(isUL?'ul-results':'fs-results');
   var btn=_container?_container.querySelector('#btn-cotizar'):gel('btn-cotizar');
   if(!btn)return;
@@ -625,7 +625,7 @@ function attachSave(modelo,modeloAuto,cfg,p20label,ppm20,reg20,p30label,ppm30,re
     if(ok){
       showToast('Cotización '+cotNum+' generada');btn.textContent='Generado';
       var svcsToUse=isUL?svcsUL:(planVal==='20k'?svcs20:svcs30);var kmData=isUL?kmUL:(planVal==='20k'?km20:km30);console.log('kmData:',kmData,'km20:',km20,'km30:',km30,'kmUL:',kmUL);
-      var vigToUse=isUL?'Unlimited':(planVal==='20k'?'2 años':'3 años');
+      var vigToUse=isUL?(vigUL||'Unlimited'):(planVal==='20k'?'2 años':'3 años');
       printCotizacion(modeloAuto,planLabel,ppm,regular,30,vigToUse,svcsToUse,cfg,cotNum,cliente,freq,rangoUL,kmData);
     }else{btn.disabled=false;btn.textContent='Generar e Imprimir Cotización';}
   });
@@ -663,7 +663,7 @@ function calcFS(){
   var area=gel('fs-results');area.style.display='block';area.innerHTML=html;
   var svcs20=sv.filter(function(s){return(s.cant_20k||0)>0;}).map(function(s){return{nombre:s.servicio,cant:s.cant_20k};});
   var svcs30=sv.filter(function(s){return(s.cant_30k||0)>0;}).map(function(s){return{nombre:s.servicio,cant:s.cant_30k};});
-  attachSave(m,pr.modelo_auto,cfg,'Full Service 20K',p20.ppm||0,p20.precio_usd||0,'Full Service 30K',p30.ppm||0,p30.precio_usd||0,svcs20,svcs30,[],false,f,'',p20.km||'',p30.km||'','');
+  attachSave(m,pr.modelo_auto,cfg,'Full Service 20K',p20.ppm||0,p20.precio_usd||0,'Full Service 30K',p30.ppm||0,p30.precio_usd||0,svcs20,svcs30,[],false,f,'',p20.km||'',p30.km||'','','');
   area.scrollIntoView({behavior:'smooth',block:'start'});
 }
 function calcUL(){
@@ -683,7 +683,7 @@ function calcUL(){
   var s30=p30.precio_usd&&p30.ppm?p30.precio_usd-p30.ppm:null;
   var sul_s=pul.precio_usd&&pul.ppm_usd?pul.precio_usd-pul.ppm_usd:null;
   var cfg=m+(mo?' '+mo:'')+(t?' '+t:'')+(f?' '+f:'')+(c?' '+c:'')+' UL '+rango;
-  var html='<div class="results-header"><div><div class="results-car-name">'+pfs.modelo_auto+'</div><div class="results-car-sub">Plan Unlimited · '+rango+'</div></div></div>'+
+  var html='<div class="results-header"><div><div class="results-car-name">'+pfs.modelo_auto+'</div><div class="results-car-sub">Unlimited · '+rango+'</div></div></div>'+
     '<div class="plans-grid"><div class="plan-card">'+
     '<div class="plan-card-header ul"><div class="plan-tag">'+pul.paquete+'</div><span class="plan-range-badge badge-ul">'+rango+'</span></div>'+
     '<div class="plan-card-body"><div class="price-row"><div><div class="price-label">Precio PPM</div><div class="price-sub">Descuento: 30%</div></div>'+
@@ -697,7 +697,7 @@ function calcUL(){
     saveFormUL('Plan Unlimited '+rango,pul.ppm_usd||0,pul.precio_usd||0);
   var area=gel('ul-results');area.style.display='block';area.innerHTML=html;
   var svcsUL=sul.filter(function(s){return(s.cant||0)>0;}).map(function(s){return{nombre:s.servicio,cant:s.cant};});
-  attachSave(m,pfs.modelo_auto,cfg,'FS + Unlimited '+rango,pul.ppm_usd||0,pul.precio_usd||0,'FS + Unlimited '+rango,pul.ppm_usd||0,pul.precio_usd||0,[],[],svcsUL,true,f,rango,'','',pul.km||'');
+  attachSave(m,pfs.modelo_auto,cfg,'Unlimited '+rango,pul.ppm_usd||0,pul.precio_usd||0,'Unlimited '+rango,pul.ppm_usd||0,pul.precio_usd||0,[],[],svcsUL,true,f,rango,'','',pul.km||'',pul.vigencia||'');
   area.scrollIntoView({behavior:'smooth',block:'start'});
 }
 window.addEventListener('load',function(){
