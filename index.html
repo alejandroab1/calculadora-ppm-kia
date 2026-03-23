@@ -475,7 +475,7 @@ async function loadAdmin(){
   gel('admin-tbody').innerHTML='<tr><td colspan="9" class="loading">Cargando...</td></tr>';
   try{
     var url='https://api.airtable.com/v0/'+AT_BASE+'/'+encodeURIComponent(AT_TABLE)+'?sort[0][field]=Fecha_Cotizacion&sort[0][direction]=desc&pageSize=100';
-    var r=await fetch(url,{});
+    var r=await fetch(url,{headers:{Authorization:'Bearer '+AT_TOKEN}});
     var d=await r.json();
     if(d.error){showToast('Error: '+d.error.message,true);return;}
     allCotizaciones=d.records||[];
@@ -512,7 +512,7 @@ async function loadMis(){
   try{
     var filter=encodeURIComponent("{Vendedor}='"+currentVendedor+"'");
     var url='https://api.airtable.com/v0/'+AT_BASE+'/'+encodeURIComponent(AT_TABLE)+'?sort[0][field]=Fecha_Cotizacion&sort[0][direction]=desc&pageSize=100&filterByFormula='+filter;
-    var r=await fetch(url,{});
+    var r=await fetch(url,{headers:{Authorization:'Bearer '+AT_TOKEN}});
     var d=await r.json();
     if(d.error){showToast('Error: '+d.error.message,true);return;}
     var rows=d.records||[];
