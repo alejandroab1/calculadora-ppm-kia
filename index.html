@@ -307,8 +307,8 @@ function printCotizacion(modeloAuto,planLabel,ppm,regular,descuento,vigencia,ser
   if(!cotNum)cotNum=getNextCotNum();
   var clienteEl=gel('save-cliente');
   var clienteNombre=clienteNombreParam||(clienteEl&&clienteEl.value.trim()?clienteEl.value.trim():'[Cliente]');
-  var numSvcs=kmStr?(kmStr.match(/K/g)||[]).length:0;
   var kmStr=kmData||'';
+  var numSvcs=kmStr?(kmStr.match(/K/g)||[]).length:0;
   var today=new Date();
   var fechaStr=today.toLocaleDateString('es-PE',{day:'2-digit',month:'long',year:'numeric'});
   var fechaVig=new Date(today.getTime()+30*24*60*60*1000).toLocaleDateString('es-PE',{day:'2-digit',month:'long',year:'numeric'});
@@ -604,8 +604,7 @@ function saveForm(p20label,p30label,ppm20,reg20,ppm30,reg30){
     '<div class="btn-row"><button class="btn-cotizar" id="btn-cotizar">Generar e Imprimir Cotización</button></div></div>';
 }
 function attachSave(modelo,modeloAuto,cfg,p20label,ppm20,reg20,p30label,ppm30,reg30,svcs20,svcs30,svcsUL,isUL,freq,rangoUL,km20,km30,kmUL,vigUL){
-  var _container=gel(isUL?'ul-results':'fs-results');
-  var btn=_container?_container.querySelector('#btn-cotizar'):gel('btn-cotizar');
+  var btn=gel('btn-cotizar');
   if(!btn)return;
   var newBtn=btn.cloneNode(true);btn.parentNode.replaceChild(newBtn,btn);btn=newBtn;
   btn.addEventListener('click',async function(){
@@ -641,7 +640,7 @@ function planCard(hClass,tag,bClass,range,plan,savings,svcs,cantKey){
     '<div class="stat-item"><div class="stat-label">Descuento</div><div class="stat-value">30%</div></div>'+
     '</div><div class="services-title">Detalle del plan</div>'+svcTable(svcs,cantKey)+'</div></div>';
 }
-function calcFS(){
+function calcFS(){gel('ul-results').style.display='none';gel('ul-results').innerHTML='';
   var m=gel('fs-modelo').value,mo=gel('fs-motor').value,t=gel('fs-trans').value,f=gel('fs-freq').value,c=gel('fs-comb').value;
   var mg=gel('fs-motor-group'),tg=gel('fs-trans-group');
   if(!m){showToast('Selecciona un modelo',true);return;}
@@ -666,7 +665,7 @@ function calcFS(){
   attachSave(m,pr.modelo_auto,cfg,'Full Service 20K',p20.ppm||0,p20.precio_usd||0,'Full Service 30K',p30.ppm||0,p30.precio_usd||0,svcs20,svcs30,[],false,f,'',p20.km||'',p30.km||'','','');
   area.scrollIntoView({behavior:'smooth',block:'start'});
 }
-function calcUL(){
+function calcUL(){gel('fs-results').style.display='none';gel('fs-results').innerHTML='';
   var m=gel('ul-modelo').value,mo=gel('ul-motor').value,t=gel('ul-trans').value,f=gel('ul-freq').value,c=gel('ul-comb').value,rango=gel('ul-rango').value;
   var mg=gel('ul-motor-group'),tg=gel('ul-trans-group');
   if(!m){showToast('Selecciona un modelo',true);return;}
