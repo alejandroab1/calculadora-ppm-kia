@@ -128,6 +128,7 @@ body{font-family:'Barlow',Arial,sans-serif;background:var(--kia-gray);color:var(
 @media(max-width:768px){.topbar{display:none}.header{padding:0 20px;height:72px}.header-center{display:none}.tabs-bar{padding:0 16px}.main{padding:20px}.form-grid,.form-grid-2{grid-template-columns:1fr}.plans-grid.two-col{grid-template-columns:1fr}.stats-row{grid-template-columns:repeat(2,1fr)}.stats-cards{grid-template-columns:repeat(2,1fr)}}
 @media print{.topbar,.tabs-bar,.form-card,.btn-row,.save-section,.user-bar,.header-center{display:none}body{background:white}.header{box-shadow:none;border-bottom:2px solid var(--kia-red)}.plan-card{border:1px solid #ddd;break-inside:avoid;box-shadow:none}.plan-card-header{-webkit-print-color-adjust:exact;print-color-adjust:exact}.price-value{color:var(--kia-navy)}.savings-bar{background:#f0fff4}}
 
+
 </style>
 </head>
 <body>
@@ -158,6 +159,7 @@ body{font-family:'Barlow',Arial,sans-serif;background:var(--kia-gray);color:var(
     <button class="tab-btn tab-ul" id="tab-btn-ul">Unlimited</button>
     <button class="tab-btn tab-mis" id="tab-btn-mis" style="display:none">Mis Cotizaciones</button>
     <button class="tab-btn tab-admin" id="tab-btn-admin" style="display:none">Administración</button>
+    <button class="tab-btn tab-contrato" id="tab-btn-contrato" style="display:none">Generar Contrato</button>
   </div>
     <div class="main">
 
@@ -238,6 +240,50 @@ body{font-family:'Barlow',Arial,sans-serif;background:var(--kia-gray);color:var(
       </div>
     <div id="mis-pagination"></div>
     </div>
+
+<div class="tab-content" id="tab-contrato">
+  <div class="page-header">
+    <div class="page-title">Generar <span>Contrato</span></div>
+    <div class="page-subtitle">Cotizaciones aceptadas · Genera el contrato en PDF para el cliente</div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-cards">
+    <div class="stat-card"><div class="stat-card-label">Cotizaciones Aceptadas</div><div class="stat-card-value green" id="contrato-stat-total">—</div></div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="admin-toolbar">
+    <input type="text" class="admin-search" id="contrato-search" placeholder="Buscar cliente, modelo, N° cot...">
+    <button class="btn-refresh" id="btn-contrato-refresh">↻ Actualizar</button>
+  </div>
+
+  <!-- Tabla de cotizaciones aceptadas -->
+  <div class="table-wrap">
+    <table class="admin-table">
+      <thead>
+        <tr>
+          <th>N° Cot.</th>
+          <th>Fecha</th>
+          <th>Cliente</th>
+          <th>ID Cliente</th>
+          <th>Modelo</th>
+          <th>Plan</th>
+          <th>Precio PPM</th>
+          <th>VIN del Vehículo</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+      <tbody id="contrato-tbody">
+        <tr><td colspan="9" class="loading">Abre la pestaña para ver las cotizaciones aceptadas</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Contenedor invisible donde se renderiza el contrato para exportar PDF -->
+  <div id="contrato-render" style="position:absolute;left:-9999px;top:0;width:210mm;background:white;"></div>
+</div>
+
 
     <div class="tab-content" id="tab-admin">
       <div class="page-header">
@@ -357,6 +403,7 @@ function switchTab(t){
   gel('tab-'+t).classList.add('active');
   if(t==='admin')loadAdmin();
   if(t==='mis')loadMis();
+  if(t==='contrato') loadContrato();
 }
 function checkLogin(){
   var n=localStorage.getItem(VENDEDOR_KEY);
@@ -409,6 +456,7 @@ function showApp(){
   var isAdmin=currentVendedor===ADMIN_NAME;
   gel('tab-btn-admin').style.display=isAdmin?'inline-block':'none';
   gel('tab-btn-mis').style.display=isAdmin?'none':'inline-block';
+  gel('tab-btn-contrato').style.display = 'inline-block';
   populateFS();populateUL();
 }
 function cambiarUsuario(){
@@ -820,6 +868,7 @@ window.addEventListener('load',function(){
   gel('admin-filter-status').addEventListener('change',function(){filterTable();});
   gel('mis-search').addEventListener('input',function(){filterMisTable();});
   gel('mis-filter-status').addEventListener('change',function(){filterMisTable();});
+  gel('tab-btn-contrato').addEventListener('click', function(){ switchTab('contrato'); });
   // FS cascades
   gel('fs-modelo').addEventListener('change',function(){
     var m=this.value;if(!m)return;
@@ -880,5 +929,1124 @@ window.addEventListener('load',function(){
 });
 
 </script>
+
+<script>
+// -----------------------------------------------------------------------
+// PESTAÑA: GENERAR CONTRATO
+// -----------------------------------------------------------------------
+
+var _allContratos = [];
+
+async function loadContrato() {
+  gel('contrato-tbody').innerHTML = '<tr><td colspan="9" class="loading">Cargando...</td></tr>';
+  try {
+    var filter = encodeURIComponent("{Estado}='Aceptada'");
+    var url = 'https://api.airtable.com/v0/' + AT_BASE + '/' + encodeURIComponent(AT_TABLE) +
+      '?sort[0][field]=Fecha_Cotizacion&sort[0][direction]=desc&pageSize=100&filterByFormula=' + filter;
+    var r = await fetch(url, { headers: { Authorization: 'Bearer ' + AT_TOKEN } });
+    var d = await r.json();
+    if (d.error) { showToast('Error: ' + d.error.message, true); return; }
+    _allContratos = d.records || [];
+    gel('contrato-stat-total').textContent = _allContratos.length;
+    renderContratoTable(_allContratos);
+  } catch (e) { showToast('Error: ' + e.message, true); }
+}
+
+function filterContratoTable() {
+  var q = gel('contrato-search').value.toLowerCase();
+  renderContratoTable(_allContratos.filter(function(r) {
+    var f = r.fields;
+    return !q || [f.Cliente, f.Modelo, f.Plan, f.ID_Cliente, f.Num_Cotizacion].some(function(v) {
+      return v && String(v).toLowerCase().indexOf(q) >= 0;
+    });
+  }));
+}
+
+function renderContratoTable(rows) {
+  if (!rows.length) {
+    gel('contrato-tbody').innerHTML = '<tr><td colspan="9" class="empty-state">No hay cotizaciones aceptadas</td></tr>';
+    return;
+  }
+  gel('contrato-tbody').innerHTML = rows.map(function(r) {
+    var f = r.fields;
+    return '<tr>' +
+      '<td style="font-size:12px;font-weight:700;color:#1D4ED8;white-space:nowrap">' + (f.Num_Cotizacion ? '#' + f.Num_Cotizacion : '—') + '</td>' +
+      '<td style="font-size:12px;white-space:nowrap">' + (f.Fecha_Cotizacion || '—') + '</td>' +
+      '<td style="font-weight:600">' + (f.Cliente || '—') + '</td>' +
+      '<td>' + (f.ID_Cliente || '—') + '</td>' +
+      '<td>' + (f.Modelo || '—') + '</td>' +
+      '<td style="font-size:12px">' + (f.Plan || '—') + '</td>' +
+      '<td style="color:var(--kia-red);font-weight:700">$' + (f.Precio_PPM ? parseFloat(f.Precio_PPM).toFixed(2) : '—') + '</td>' +
+      '<td><input type="text" class="form-input vin-input" data-id="' + r.id + '" placeholder="Ingresar VIN" style="width:180px;padding:6px 10px;font-size:13px;border:1px solid #E8EAED;border-radius:3px;" maxlength="17"></td>' +
+      '<td><button onclick="generarContrato(\'' + r.id + '\')" style="background:#BB162B;color:white;border:none;padding:6px 14px;border-radius:3px;cursor:pointer;font-size:13px;font-weight:700;white-space:nowrap">📄 Generar PDF</button></td>' +
+      '</tr>';
+  }).join('');
+}
+
+function generarContrato(recordId) {
+  // Obtener VIN del input correspondiente
+  var vinInput = document.querySelector('.vin-input[data-id="' + recordId + '"]');
+  var vin = vinInput ? vinInput.value.trim() : '';
+  if (!vin) { showToast('Ingresa el VIN del vehículo', true); if (vinInput) vinInput.focus(); return; }
+
+  // Buscar el record en memoria
+  var rec = _allContratos.find(function(r) { return r.id === recordId; });
+  if (!rec) { showToast('No se encontró la cotización', true); return; }
+
+  var f = rec.fields;
+  var plan = f.Plan || '';
+  var isUL = plan.toLowerCase().indexOf('unlimited') >= 0;
+
+  var html = isUL
+    ? buildContratoUL(f, vin)
+    : buildContratoFS(f, vin);
+
+  // Renderizar en contenedor
+  var container = gel('contrato-render');
+  container.innerHTML = html;
+
+  showToast('Abriendo vista previa para imprimir...');
+
+  // Esperar a que se renderice el HTML
+  setTimeout(function() {
+    // Usar Print to PDF nativo (sin dependencias externas)
+    var printWindow = window.open('', '_blank', 'height=600,width=800,left=100,top=100');
+    printWindow.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8">');
+    printWindow.document.write('<title>Contrato - ' + (f.Cliente || 'cliente') + '</title>');
+    printWindow.document.write('<style>body { font-family: Arial, sans-serif; margin: 0; padding: 0; } @media print { body { margin: 0; } }</style>');
+    printWindow.document.write('</head><body>');
+    printWindow.document.write(html);
+    printWindow.document.write('</body></html>');
+    printWindow.document.close();
+
+    // Esperar a que cargue el contenido
+    setTimeout(function() {
+      printWindow.print();
+      container.innerHTML = '';
+      showToast('Contrato listo. Usa "Guardar como PDF" en el cuadro de impresión.');
+    }, 500);
+  }, 100);
+}
+
+// -----------------------------------------------------------------------
+// DETERMINAR FRECUENCIA desde el campo Configuracion/Plan
+// -----------------------------------------------------------------------
+function detectFreq(f) {
+  var cfg = (f.Configuracion || '') + ' ' + (f.Plan || '');
+  if (/\b5K\b/.test(cfg)) return '5K';
+  if (/\b10K\b/.test(cfg)) return '10K';
+  if (/\b15K\b/.test(cfg)) return '15K';
+  // Inferir por modelo si no está explícito
+  var modelo = (f.Modelo || '').toLowerCase();
+  if (/niro|ev5|ev9/.test(modelo)) return '15K';
+  if (/picanto|soluto|rio|cerato|sonet|k3|towner|tasman/.test(modelo)) return '5K';
+  return '10K';
+}
+
+function detectRangoUL(f) {
+  // El rango UL se guarda en Plan como "Unlimited 20,000 KM – 50,000 KM" o en Configuracion como "... UL 20,000 KM – 50,000 KM"
+  var cfg = f.Configuracion || '';
+  var plan = f.Plan || '';
+  var match = (cfg + ' ' + plan).match(/(\d[\d,\.]+\s*KM\s*[–\-]\s*\d[\d,\.]+\s*KM)/i);
+  return match ? match[1] : '';
+}
+
+// -----------------------------------------------------------------------
+// CLASIFICACIÓN DE MODELOS
+// -----------------------------------------------------------------------
+function getFsGroup(modelo) {
+  var m = (modelo || '').toLowerCase();
+  if (m.indexOf('niro') === 0 || m.indexOf('ev5') === 0 || m.indexOf('ev9') === 0) return 'ev';
+  if (m.indexOf('towner') === 0) return 'towner';
+  if (m.indexOf('seltos') === 0 || m.indexOf('sportage') === 0 || m.indexOf('sorento') === 0 || m.indexOf('carens') === 0 || m.indexOf('carnival') === 0) return 'suv';
+  return 'compact';
+}
+
+// -----------------------------------------------------------------------
+// TABLAS DE MANTENIMIENTO PERIÓDICO
+// -----------------------------------------------------------------------
+
+function buildMaintenanceTableHTML(freq, modelo) {
+  // Tabla base para 5K (Picanto, Soluto, Rio, Cerato, Sonet)
+  if (freq === '5K') {
+    return `
+      <table style="width:100%; border-collapse:collapse; margin:10px 0; font-size:8pt; border:1px solid #000;">
+        <thead>
+          <tr style="background:#666; color:white;">
+            <th style="padding:3px 4px; text-align:left; border:1px solid #000; width:40%;">Operaciones de mantenimiento</th>
+            <th colspan="6" style="padding:3px 4px; text-align:center; border:1px solid #000; background:#333; font-size:7pt;">Intervalos de Mantenimiento<br/>Número de meses o distancia recorrida, lo que ocurra primero</th>
+          </tr>
+          <tr style="background:#666; color:white;">
+            <th style="padding:3px 4px; text-align:left; border:1px solid #000;"></th>
+            <th style="padding:3px 4px; text-align:center; border:1px solid #000; font-size:7pt;">6 Meses<br/>5,000 KM</th>
+            <th style="padding:3px 4px; text-align:center; border:1px solid #000; font-size:7pt;">12 Meses<br/>10,000 KM</th>
+            <th style="padding:3px 4px; text-align:center; border:1px solid #000; font-size:7pt;">18 Meses<br/>15,000 KM</th>
+            <th style="padding:3px 4px; text-align:center; border:1px solid #000; font-size:7pt;">24 Meses<br/>20,000 KM</th>
+            <th style="padding:3px 4px; text-align:center; border:1px solid #000; font-size:7pt;">30 Meses<br/>25,000 KM</th>
+            <th style="padding:3px 4px; text-align:center; border:1px solid #000; font-size:7pt;">36 Meses<br/>30,000 KM</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td colspan="6" style="padding:3px 4px; text-align:left; border:1px solid #000; background:#f0f0f0; font-weight:bold;">Mano de Obra</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Sustitución de filtro y aceite de motor</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Revisión DTC con KDS</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Sustitución de filtro de aire</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Sustitución de Bujías*</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Sustitución de líquidos de frenos y embrague</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Revisión de servicio (¹)</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Revisión de frenos (²)</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Revisión de admisión y circulación de gases(³)</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Revisión del desagüe y condición de neumáticos - rotación</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+          </tr>
+          <tr>
+            <td colspan="6" style="padding:3px 4px; text-align:left; border:1px solid #000; background:#f0f0f0; font-weight:bold;">Repuestos</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Filtro de aceite</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Arandela de tapón de cárter</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Filtro de aire</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Bujías</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+          </tr>
+          <tr>
+            <td colspan="6" style="padding:3px 4px; text-align:left; border:1px solid #000; background:#f0f0f0; font-weight:bold;">Lubricantes y Fluidos</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Aceite de Motor</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Líquido de Frenos</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="font-size:8pt; margin-top:8px; color:#666;">
+        <strong>*Nota: El cambio de la bujía aplica únicamente al modelo Soluto</strong>
+      </p>
+      
+      <p style="font-size:9pt; margin-top:16px; font-weight:bold;">Detalle de operaciones</p>
+      
+      <table style="width:100%; border-collapse:collapse; margin:8px 0; font-size:8pt; border:1px solid #000;">
+        <tr style="background:#333; color:white;">
+          <td colspan="4" style="padding:6px; text-align:left; border:1px solid #000; font-weight:bold;">(1) REVISIONES DE SERVICIO</td>
+        </tr>
+        <tr>
+          <td style="padding:6px; border:1px solid #ccc; width:25%; font-weight:bold;">EN EL VEHICULO</td>
+          <td style="padding:6px; border:1px solid #ccc; width:25%; font-weight:bold;">DEBAJO DEL VEHICULO</td>
+          <td style="padding:6px; border:1px solid #ccc; width:25%; font-weight:bold;">ALREDEDOR DEL VEHICULO</td>
+          <td style="padding:6px; border:1px solid #ccc; width:25%; font-weight:bold;">BAJO EL CAPÓ</td>
+        </tr>
+        <tr>
+          <td style="padding:6px; border:1px solid #ccc; font-size:7pt;">Actualizar indicador<br/>Verificar y ajustar<br/>Bujías<br/>Inyectores<br/>Luces<br/>Juntas<br/>Operación A/C<br/>Filtro Habitáculo<br/>Recorrido embrague<br/>Conexiones seguridad</td>
+          <td style="padding:6px; border:1px solid #ccc; font-size:7pt;">Verificar:<br/>Fugas refrigeración<br/>Fugas inyectadores<br/>Fugas circuito frenos<br/>Fugas combustible<br/>Elementos dirección<br/>Tallo escape</td>
+          <td style="padding:6px; border:1px solid #ccc; font-size:7pt;">Verificar:<br/>Estado presupuestaria<br/>Holguras batería<br/>Limpiadoras<br/>Circuito frenos<br/>Circuito combustible<br/>Estado carga</td>
+          <td style="padding:6px; border:1px solid #ccc; font-size:7pt;">Verificar:<br/>Nivel aceite<br/>Nivel transmisión<br/>Nivel frenos<br/>Filtraciones<br/>Filtro aire<br/>Cables conexión</td>
+        </tr>
+      </table>
+
+      <div style="margin-top:10px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+        <div style="border:1px solid #000; padding:8px; background:#f5f5f5;">
+          <div style="background:#333; color:white; padding:4px; font-size:7pt; font-weight:bold; margin-bottom:6px;">(2) REVISIÓN DE FRENOS</div>
+          <div style="font-size:7pt;">Verificar:<br/>• Desgaste discos<br/>• Desgaste tambores<br/>• Fugas cilindros</div>
+        </div>
+        <div style="border:1px solid #000; padding:8px; background:#f5f5f5;">
+          <div style="background:#333; color:white; padding:4px; font-size:7pt; font-weight:bold; margin-bottom:6px;">(3) REVISIÓN DE ADMISIÓN</div>
+          <div style="font-size:7pt;">Verificar:<br/>• Mangueras vacío<br/>• Mangueras PCV<br/><br/>Limpiar:<br/>• Cámara aceleración</div>
+        </div>
+        <div style="border:1px solid #000; padding:8px; background:#f5f5f5;">
+          <div style="background:#333; color:white; padding:4px; font-size:7pt; font-weight:bold; margin-bottom:6px;">(4) REVISIÓN COMBUSTIBLE</div>
+          <div style="font-size:7pt;">Verificar:<br/>• Mangueras vapor<br/>• Figas y abrazaderas<br/>• Tapón tanque</div>
+        </div>
+      </div>
+    `;
+  }
+  
+  // Tabla para 10K (Seltos, Sportage, Sorento, Carnival, Carens)
+  if (freq === '10K') {
+    return `
+      <table style="width:100%; border-collapse:collapse; margin:10px 0; font-size:8pt; border:1px solid #000;">
+        <thead>
+          <tr style="background:#666; color:white;">
+            <th style="padding:3px 4px; text-align:left; border:1px solid #000; width:40%;">Operaciones de mantenimiento</th>
+            <th colspan="4" style="padding:3px 4px; text-align:center; border:1px solid #000; background:#333; font-size:7pt;">Intervalos de Mantenimiento<br/>Número de meses o distancia recorrida, lo que ocurra primero</th>
+          </tr>
+          <tr style="background:#666; color:white;">
+            <th style="padding:3px 4px; text-align:left; border:1px solid #000;"></th>
+            <th style="padding:3px 4px; text-align:center; border:1px solid #000; font-size:7pt;">6 Meses<br/>5,000 KM</th>
+            <th style="padding:3px 4px; text-align:center; border:1px solid #000; font-size:7pt;">12 Meses<br/>10,000 KM</th>
+            <th style="padding:3px 4px; text-align:center; border:1px solid #000; font-size:7pt;">24 Meses<br/>20,000 KM</th>
+            <th style="padding:3px 4px; text-align:center; border:1px solid #000; font-size:7pt;">36 Meses<br/>30,000 KM</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td colspan="5" style="padding:3px 4px; text-align:left; border:1px solid #000; background:#f0f0f0; font-weight:bold;">Mano de Obra</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Sustitución de filtro y aceite de motor</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Revisión DTC con KDS</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Sustitución de filtro de aire</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Sustitución de Bujías*</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Sustitución de líquidos de frenos y embrague</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Revisión de servicio (¹)</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Revisión de frenos (²)</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Revisión de admisión y circulación de gases (³)</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Revisión del desagüe y condición de neumáticos - rotación</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+          </tr>
+          <tr>
+            <td colspan="5" style="padding:3px 4px; text-align:left; border:1px solid #000; background:#f0f0f0; font-weight:bold;">Repuestos</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Filtro de aceite</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Arandela de tapón de cárter</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Filtro de aire</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Bujías*</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+          </tr>
+          <tr>
+            <td colspan="5" style="padding:3px 4px; text-align:left; border:1px solid #000; background:#f0f0f0; font-weight:bold;">Lubricantes y Fluidos</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Aceite de Motor</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Líquido de Frenos</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="font-size:8pt; margin-top:8px; color:#666;">
+        <strong>*Nota: El cambio de la bujía aplica únicamente al modelo Seltos y ciertas versiones del modelo Sorento</strong>
+      </p>
+      
+      <p style="font-size:9pt; margin-top:16px; font-weight:bold;">Detalle de operaciones</p>
+      
+      <table style="width:100%; border-collapse:collapse; margin:8px 0; font-size:8pt; border:1px solid #000;">
+        <tr style="background:#333; color:white;">
+          <td colspan="4" style="padding:6px; text-align:left; border:1px solid #000; font-weight:bold;">(1) REVISIONES DE SERVICIO</td>
+        </tr>
+        <tr>
+          <td style="padding:6px; border:1px solid #ccc; width:25%; font-weight:bold;">EN EL VEHICULO</td>
+          <td style="padding:6px; border:1px solid #ccc; width:25%; font-weight:bold;">DEBAJO DEL VEHICULO</td>
+          <td style="padding:6px; border:1px solid #ccc; width:25%; font-weight:bold;">ALREDEDOR DEL VEHICULO</td>
+          <td style="padding:6px; border:1px solid #ccc; width:25%; font-weight:bold;">BAJO EL CAPÓ</td>
+        </tr>
+        <tr>
+          <td style="padding:6px; border:1px solid #ccc; font-size:7pt;">Actualizar indicador de mantenimiento<br/>Verificar y ajustar<br/>Bujías<br/>Inyectores<br/>Luces<br/>Juntas<br/>Operación A/C<br/>Filtro Habitáculo<br/>Recorrido embrague<br/>Conexiones seguridad</td>
+          <td style="padding:6px; border:1px solid #ccc; font-size:7pt;">Verificar:<br/>Fugas refrigeración<br/>Fugas inyectadores<br/>Fugas circuito frenos<br/>Fugas combustible<br/>Elementos dirección<br/>Tallo escape y soportes</td>
+          <td style="padding:6px; border:1px solid #ccc; font-size:7pt;">Verificar:<br/>Estado presupuestaria<br/>Holguras batería<br/>Limpiadoras<br/>Circuito frenos<br/>Circuito combustible<br/>Estado carga batería</td>
+          <td style="padding:6px; border:1px solid #ccc; font-size:7pt;">Verificar:<br/>Nivel aceite motor<br/>Nivel comprabilidad<br/>Nivel transmisión<br/>Nivel frenos<br/>Filtraciones<br/>Filtro aire</td>
+        </tr>
+      </table>
+
+      <div style="margin-top:10px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+        <div style="border:1px solid #000; padding:8px; background:#f5f5f5;">
+          <div style="background:#333; color:white; padding:4px; font-size:7pt; font-weight:bold; margin-bottom:6px;">(2) REVISIÓN DE FRENOS</div>
+          <div style="font-size:7pt;">Verificar:<br/>• Desgaste discos y pastillas<br/>• Desgaste tambores y zapatas<br/>• Fugas cilindros, tambores y mangueras</div>
+        </div>
+        <div style="border:1px solid #000; padding:8px; background:#f5f5f5;">
+          <div style="background:#333; color:white; padding:4px; font-size:7pt; font-weight:bold; margin-bottom:6px;">(3) REVISIÓN DE ADMISIÓN Y CIRCULACIÓN</div>
+          <div style="font-size:7pt;">Verificar:<br/>• Mangueras vacío motor<br/>• Mangueras ventilación (PCV)<br/><br/>Limpiar:<br/>• Cámara aceleración</div>
+        </div>
+        <div style="border:1px solid #000; padding:8px; background:#f5f5f5;">
+          <div style="background:#333; color:white; padding:4px; font-size:7pt; font-weight:bold; margin-bottom:6px;">(4) REVISIÓN SISTEMA COMBUSTIBLE</div>
+          <div style="font-size:7pt;">Verificar:<br/>• Mangueras vapor<br/>• Figas y abrazaderas<br/>• Tapón tanque</div>
+        </div>
+      </div>
+    `;
+  }
+  
+  // Tabla para 15K (Niro, EV5, EV9)
+  if (freq === '15K') {
+    return `
+      <table style="width:100%; border-collapse:collapse; margin:10px 0; font-size:8pt; border:1px solid #000;">
+        <thead>
+          <tr style="background:#666; color:white;">
+            <th style="padding:3px 4px; text-align:left; border:1px solid #000; width:40%;">Operaciones de mantenimiento</th>
+            <th colspan="3	" style="padding:3px 4px; text-align:center; border:1px solid #000; background:#333; font-size:7pt;">Intervalos de Mantenimiento<br/>Número de meses o distancia recorrida, lo que ocurra primero</th>
+          </tr>
+          <tr style="background:#666; color:white;">
+            <th style="padding:3px 4px; text-align:left; border:1px solid #000;"></th>
+            <th style="padding:3px 4px; text-align:center; border:1px solid #000; font-size:7pt;">12 Meses<br/>15,000 KM</th>
+            <th style="padding:3px 4px; text-align:center; border:1px solid #000; font-size:7pt;">24 Meses<br/>30,000 KM</th>
+            <th style="padding:3px 4px; text-align:center; border:1px solid #000; font-size:7pt;">36 Meses<br/>45,000 KM</th>
+            
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td colspan="3" style="padding:3px 4px; text-align:left; border:1px solid #000; background:#f0f0f0; font-weight:bold;">Mano de Obra</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Sustitución de filtro y aceite de motor</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Revisión DTC con KDS</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Sustitución de filtro de aire</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Sustitución de filtro de combustible</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Sustitución de líquidos de frenos</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Sustitución de líquido del actuador del embrague del motor</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Revisión de servicio (¹)</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Revisión de frenos (²)</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Revisión de admisión y circulación de gases(³)</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Revisión del desagüe y condición de neumáticos - rotación</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td colspan="6" style="padding:3px 4px; text-align:left; border:1px solid #000; background:#f0f0f0; font-weight:bold;">Repuestos</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Filtro de aceite</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Arandela de tapón de cárter</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Filtro de aire</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Filtro de combustible</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td colspan="6" style="padding:3px 4px; text-align:left; border:1px solid #000; background:#f0f0f0; font-weight:bold;">Lubricantes y Fluidos</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Aceite de Motor</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 4px; text-align:left; border:1px solid #000;">Líquido de Frenos</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;"></td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+            <td style="padding:3px 4px; text-align:center; border:1px solid #000;">✓</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="font-size:8pt; margin-top:8px; color:#666;">
+      </p>
+      
+      <p style="font-size:9pt; margin-top:16px; font-weight:bold;">Detalle de operaciones</p>
+      
+      <table style="width:100%; border-collapse:collapse; margin:8px 0; font-size:8pt; border:1px solid #000;">
+        <tr style="background:#333; color:white;">
+          <td colspan="4" style="padding:6px; text-align:left; border:1px solid #000; font-weight:bold;">(1) REVISIONES DE SERVICIO</td>
+        </tr>
+        <tr>
+          <td style="padding:6px; border:1px solid #ccc; width:25%; font-weight:bold;">EN EL VEHICULO</td>
+          <td style="padding:6px; border:1px solid #ccc; width:25%; font-weight:bold;">DEBAJO DEL VEHICULO</td>
+          <td style="padding:6px; border:1px solid #ccc; width:25%; font-weight:bold;">ALREDEDOR DEL VEHICULO</td>
+          <td style="padding:6px; border:1px solid #ccc; width:25%; font-weight:bold;">BAJO EL CAPÓ</td>
+        </tr>
+        <tr>
+          <td style="padding:6px; border:1px solid #ccc; font-size:7pt;">Actualizar indicador<br/>Verificar y ajustar<br/>Líquidos (EV)<br/>Sistema recarga<br/>Luces<br/>Juntas<br/>Operación A/C<br/>Filtro Habitáculo<br/>Conexiones eléctricas<br/>Conexiones seguridad</td>
+          <td style="padding:6px; border:1px solid #ccc; font-size:7pt;">Verificar:<br/>Fugas refrigeración<br/>Batería tración<br/>Fugas circuito frenos<br/>Fugas combustible<br/>Elementos dirección<br/>Tallo escape</td>
+          <td style="padding:6px; border:1px solid #ccc; font-size:7pt;">Verificar:<br/>Estado presupuestaria<br/>Holguras batería<br/>Limpiadoras<br/>Circuito frenos<br/>Nivel combustible<br/>Estado carga</td>
+          <td style="padding:6px; border:1px solid #ccc; font-size:7pt;">Verificar:<br/>Nivel aceite<br/>Nivel transmisión<br/>Sistema refrigeración<br/>Filtraciones<br/>Filtro aire<br/>Cables conexión</td>
+        </tr>
+      </table>
+
+      <div style="margin-top:10px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+        <div style="border:1px solid #000; padding:8px; background:#f5f5f5;">
+          <div style="background:#333; color:white; padding:4px; font-size:7pt; font-weight:bold; margin-bottom:6px;">(2) REVISIÓN DE FRENOS</div>
+          <div style="font-size:7pt;">Verificar:<br/>• Desgaste discos<br/>• Desgaste tambores<br/>• Sistema regenerativo</div>
+        </div>
+        <div style="border:1px solid #000; padding:8px; background:#f5f5f5;">
+          <div style="background:#333; color:white; padding:4px; font-size:7pt; font-weight:bold; margin-bottom:6px;">(3) SISTEMA DE BATERÍA</div>
+          <div style="font-size:7pt;">Verificar:<br/>• Estado batería<br/>• Temperatura<br/>• Conectores<br/>• Sistema enfriamiento</div>
+        </div>
+        <div style="border:1px solid #000; padding:8px; background:#f5f5f5;">
+          <div style="background:#333; color:white; padding:4px; font-size:7pt; font-weight:bold; margin-bottom:6px;">(4) REVISIÓN ELÉCTRICA</div>
+          <div style="font-size:7pt;">Verificar:<br/>• Motor eléctrico<br/>• Convertidor DC-DC<br/>• Fusibles principales<br/>• Conectores</div>
+        </div>
+      </div>
+    `;
+  }
+  
+  return '<p><em>Tabla de mantenimiento disponible según frecuencia.</em></p>';
+}
+
+// -----------------------------------------------------------------------
+// ANEXO 1 - PAUTA DE MANTENIMIENTO CONDICIONAL (CON DATOS DE EXCEL)
+// -----------------------------------------------------------------------
+function buildAnnexText(modelo, plan, freq) {
+  var m = (modelo || '').toLowerCase().trim();
+  var isUL = (plan || '').toLowerCase().indexOf('unlimited') >= 0;
+  var anexo = findAnnexTable(modelo, plan);
+  
+  // Título del anexo
+  var title = '<p style="margin-bottom:4px;"><strong>ANEXO 1:</strong></p>';
+  title += '<p style="margin-bottom:4px;"><strong>PAUTA DE MANTENIMIENTO PERIÓDICO</strong></p>';
+  
+  if (anexo) {
+    // Si encontramos el anexo, mostramos la tabla
+        
+    // Usar la tabla estática de mantenimiento (que ya funciona correctamente)
+    return title + buildMaintenanceTableHTML(freq, modelo);
+  } else {
+    // Si no encuentra el anexo, también usa tabla estática
+    console.warn('Modelo no encontrado en anexos: ' + modelo + ' (' + plan + ')');
+    return title + buildMaintenanceTableHTML(freq, modelo);
+  }
+}
+
+// -----------------------------------------------------------------------
+// HELPERS DE FORMATO
+// -----------------------------------------------------------------------
+function fmtFecha() {
+  return new Date().toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' });
+}
+
+function contratoStyles() {
+  return `
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: Arial, sans-serif; }
+      .ct { font-family: Arial, sans-serif; font-size: 11pt; color: #1a1a1a; padding: 18mm 18mm 15mm 18mm; background: white; }
+      .ct h1 { text-align: center; font-size: 13pt; font-weight: bold; margin-bottom: 4px; }
+      .ct h2 { text-align: center; font-size: 14pt; font-weight: bold; margin-bottom: 20px; }
+      .ct .section-title { font-weight: bold; margin: 16px 0 6px 0; font-size: 11pt; }
+      .ct p { margin-bottom: 8px; line-height: 1.55; text-align: justify; font-size: 10.5pt; }
+      .ct ul { margin: 6px 0 10px 20px; }
+      .ct ul li { margin-bottom: 5px; line-height: 1.5; font-size: 10.5pt; text-align: justify; }
+      .ct table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 10pt; }
+      .ct table th { background: #05141F; color: white; padding: 5px 8px; text-align: center; font-weight: bold; }
+      .ct table td { border: 1px solid #ccc; padding: 5px 8px; text-align: center; }
+      .ct table td.left { text-align: left; }
+      .ct .firma-block { margin-top: 30px; }
+      .ct .firma-line { border-top: 1px solid #333; width: 260px; margin: 70px 0 6px 0; }
+      .ct .firma-center { text-align: left; }
+      .ct .datos-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+      .ct .datos-table td { padding: 6px 10px; border: 1px solid #ccc; font-size: 10.5pt; }
+      .ct .datos-table td.label { font-weight: bold; background: #f5f5f5; width: 40%; }
+      .ct .highlight { background: #fffbe6; }
+      .ct .contract-highlight-yellow { background-color: #FFFF00; padding: 2px 4px; display: inline-block; }
+      .ct .red { color: #BB162B; }
+      .ct .bold { font-weight: bold; }
+      .ct hr { border: none; border-top: 1px solid #ccc; margin: 16px 0; }
+      .ct .page-break { page-break-before: always; }
+    </style>
+  `;
+}
+
+// -----------------------------------------------------------------------
+// TABLA DE PAQUETES FULL SERVICE según frecuencia
+// -----------------------------------------------------------------------
+function tablaFS(freq, planLabel) {
+  if (freq === '5K') {
+    // Modelos 5K: Picanto, Soluto, Rio, Cerato, Sonet, K3, Towner, Tasman
+    var is20k = planLabel.indexOf('20K') >= 0 || planLabel.toLowerCase().indexOf('20') >= 0;
+    return `
+      <p><strong>Para los modelos:</strong> Picanto, Soluto, Rio, Cerato, Sonet, K3, Towner, Tasman</p>
+      <table>
+        <tr><th>Mantenimiento de:</th><th>5.000 KM</th><th>10.000 KM</th><th>15.000 KM</th><th>20.000 KM</th><th>25.000 KM</th><th>30.000 KM</th></tr>
+        <tr>
+          <td class="left"><strong>Paquete 1 (Hasta 20,000 Km)</strong></td>
+          <td>${is20k ? '✓' : ''}</td><td>${is20k ? '✓' : ''}</td><td>${is20k ? '✓' : ''}</td><td>${is20k ? '✓' : ''}</td><td></td><td></td>
+        </tr>
+        <tr>
+          <td class="left"><strong>Paquete 2 (Hasta 30,000 Km)</strong></td>
+          <td>${!is20k ? '✓' : ''}</td><td>${!is20k ? '✓' : ''}</td><td>${!is20k ? '✓' : ''}</td><td>${!is20k ? '✓' : ''}</td><td>${!is20k ? '✓' : ''}</td><td>${!is20k ? '✓' : ''}</td>
+        </tr>
+      </table>`;
+  } else if (freq === '15K') {
+    // Modelos EV: Niro, EV5, EV9
+    var is30k = planLabel.indexOf('30K') >= 0 || planLabel.toLowerCase().indexOf('30') >= 0;
+    return `
+      <p><strong>Para el Modelo:</strong> Niro, EV5, EV9</p>
+      <table>
+        <tr><th>Mantenimiento de:</th><th>15.000 KM</th><th>30.000 KM</th><th>45.000 KM</th></tr>
+        <tr>
+          <td class="left"><strong>Paquete 3 (Hasta 30,000 Km)</strong></td>
+          <td>${is30k ? '✓' : ''}</td><td>${is30k ? '✓' : ''}</td><td></td>
+        </tr>
+        <tr>
+          <td class="left"><strong>Paquete 4 (Hasta 45,000 Km)</strong></td>
+          <td>${!is30k ? '✓' : ''}</td><td>${!is30k ? '✓' : ''}</td><td>${!is30k ? '✓' : ''}</td>
+        </tr>
+      </table>`;
+  } else {
+    // 10K: Seltos, Sportage, Sorento, Carens, Carnival
+    var is20k10 = planLabel.indexOf('20K') >= 0 || planLabel.toLowerCase().indexOf('20') >= 0;
+    return `
+      <p><strong>Para los modelos:</strong> Seltos, Sportage, Sorento, Carens, Carnival</p>
+      <table>
+        <tr><th>Mantenimiento de:</th><th>5.000 KM</th><th>10.000 KM</th><th>20.000 KM</th><th>30.000 KM</th></tr>
+        <tr>
+          <td class="left"><strong>Paquete 1 (Hasta 20,000 Km)</strong></td>
+          <td>${is20k10 ? '✓' : ''}</td><td>${is20k10 ? '✓' : ''}</td><td>${is20k10 ? '✓' : ''}</td><td></td>
+        </tr>
+        <tr>
+          <td class="left"><strong>Paquete 2 (Hasta 30,000 Km)</strong></td>
+          <td>${!is20k10 ? '✓' : ''}</td><td>${!is20k10 ? '✓' : ''}</td><td>${!is20k10 ? '✓' : ''}</td><td>${!is20k10 ? '✓' : ''}</td>
+        </tr>
+      </table>`;
+  }
+}
+
+// -----------------------------------------------------------------------
+// TABLA DE PAQUETES UNLIMITED según frecuencia y rango
+// -----------------------------------------------------------------------
+function tablaUL(freq, rango) {
+  if (freq === '5K') {
+    var rows5 = [
+      ['20,000 KM – 50,000 KM', '✓','✓','✓','✓','✓','✓','✓','',''],
+      ['30,000 KM – 50,000 KM', '','','✓','✓','✓','✓','✓','',''],
+      ['30,000 KM – 60,000 KM', '','','✓','✓','✓','✓','✓','✓','✓'],
+      ['40,000 KM – 60,000 KM', '','','','','✓','✓','✓','✓','✓'],
+    ];
+    return `
+      <p>Para modelos KIA con servicios de mantenimiento cada <strong>5,000 km o 6 meses</strong>, lo que ocurra primero:</p>
+      <table>
+        <tr><th>Rango de Kilometraje</th><th>20K</th><th>25K</th><th>30K</th><th>35K</th><th>40K</th><th>45K</th><th>50K</th><th>55K</th><th>60K</th></tr>
+        ${rows5.map(function(r){
+          return '<tr>' + r.map(function(c,i){
+            if(i===0) return '<td class="left"' + (rango && r[0]===rango ? ' style="background:#fffbe6;font-weight:bold"' : '') + '>' + c + '</td>';
+            return '<td>' + c + '</td>';
+          }).join('') + '</tr>';
+        }).join('')}
+      </table>`;
+  } else {
+    // 10K (default para Unlimited)
+    var rows10 = [
+      ['20,000 KM – 50,000 KM', '✓','✓','✓','✓',''],
+      ['30,000 KM – 50,000 KM', '','✓','✓','✓',''],
+      ['30,000 KM – 60,000 KM', '','✓','✓','✓','✓'],
+      ['40,000 KM – 60,000 KM', '','','✓','✓','✓'],
+    ];
+    return `
+      <p>Para modelos KIA con servicios de mantenimiento cada <strong>10,000 km o 12 meses</strong>, lo que ocurra primero:</p>
+      <table>
+        <tr><th>Rango de Kilometraje</th><th>20,000 KM</th><th>30,000 KM</th><th>40,000 KM</th><th>50,000 KM</th><th>60,000 KM</th></tr>
+        ${rows10.map(function(r){
+          return '<tr>' + r.map(function(c,i){
+            if(i===0) return '<td class="left"' + (rango && r[0]===rango ? ' style="background:#fffbe6;font-weight:bold"' : '') + '>' + c + '</td>';
+            return '<td>' + c + '</td>';
+          }).join('') + '</tr>';
+        }).join('')}
+      </table>`;
+  }
+}
+
+// -----------------------------------------------------------------------
+// VIGENCIA según plan y frecuencia
+// -----------------------------------------------------------------------
+function getVigenciaFS(freq, planLabel) {
+  var is20k = planLabel.indexOf('20K') >= 0 || planLabel.toLowerCase().indexOf('20') >= 0;
+  if (freq === '15K') {
+    return is20k
+      ? 'dos (2) años y/o treinta mil (30,000) km, lo que ocurra primero'
+      : 'tres (3) años y/o cuarenta y cinco mil (45,000) km, lo que ocurra primero';
+  }
+  return is20k
+    ? 'dos (2) años y/o veinte mil (20,000) km, lo que ocurra primero'
+    : 'tres (3) años y/o treinta mil (30,000) km, lo que ocurra primero';
+}
+
+function getVigenciaUL(rango) {
+  if (!rango) return '—';
+  // Rango hasta 50K → 2 años; hasta 60K → 3 años
+  if (rango.indexOf('60') >= 0) return 'tres (3) años';
+  return 'dos (2) años';
+}
+
+// -----------------------------------------------------------------------
+// CONTRATO FULL SERVICE
+// -----------------------------------------------------------------------
+function buildContratoFS(f, vin) {
+  var freq = detectFreq(f);
+  var modelo = f.Modelo || '—';
+  var cliente = f.Cliente || '—';
+  var planLabel = f.Plan || '—';
+  var ppm = f.Precio_PPM ? '$' + parseFloat(f.Precio_PPM).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '—';
+  var vigencia = getVigenciaFS(freq, planLabel);
+  var fecha = fmtFecha();
+  var cotNum = f.Num_Cotizacion ? '#' + f.Num_Cotizacion : '';
+
+  return contratoStyles() + `
+  <div class="ct">
+    <h1>TÉRMINOS Y CONDICIONES DEL</h1>
+    <h2>PROGRAMA DE MANTENIMIENTOS KIA FULL SERVICE</h2>
+
+    <div class="section-title">1. DESCRIPCIÓN</div>
+    <p>El Programa de Mantenimiento KIA Full Service (en adelante, Programa KIA Full Service) es un plan del <strong>[ALMACENES SANTA CLARA S.A.]</strong> (en adelante, EL CONCESIONARIO) que le permite al cliente, quien se encuentra identificado al final del presente documento, adquirir en forma anticipada y a un precio fijo y predeterminado, un paquete de mantenimientos preventivos por un periodo de tiempo o kilometraje determinado, lo que ocurra primero (en adelante, Paquete de Mantenimientos).</p>
+    <p>Para los modelos Picanto, Soluto, Rio, Cerato, Sonet, Towner, Seltos, Sportage, Sorento, Carens y Carnival el Programa KIA Full Service aplica para vehículos nuevos y para vehículos hasta antes de realizar su primer servicio de mantenimiento de 5,000 Km o 6 meses desde la entrega del vehículo nuevo, lo que ocurra primero. Para el modelo Niro, el Programa KIA Full Service aplica para vehículos nuevos y para vehículos hasta antes de realizar su primer servicio de mantenimiento de 15,000 Km o 12 meses desde la entrega del vehículo nuevo, lo que ocurra primero.</p>
+
+    <div class="section-title">2. COBERTURA</div>
+    <p>Los servicios y repuestos comprendidos en cada uno de los Paquetes de Mantenimiento se detallan en la Pauta de Mantenimiento Periódico de KIA, la cual se adjunta como Anexo 1 a este documento. Por lo tanto, los servicios y repuestos que no estén incluidos en la Pauta de Mantenimiento Periódico deberán ser asumidos directamente por <strong>EL CLIENTE</strong>, pues no forman parte del mismo.</p>
+
+    <div class="section-title">3. PAQUETES DE MANTENIMIENTO</div>
+    <p>Los Paquetes de Mantenimiento disponibles del Programa KIA Full Service son los siguientes:</p>
+    ${tablaFS(freq, planLabel)}
+
+    <div class="section-title">4. VIGENCIA DE LOS PAQUETES DE MANTENIMIENTO</div>
+    <p>La vigencia del paquete elegido (<strong>${planLabel}</strong>) es de <strong>${vigencia}</strong>.</p>
+
+    <div class="section-title">5. CONDICIONES Y RESTRICCIONES</div>
+    <ul>
+      <li>EL CLIENTE deberá realizar los mantenimientos preventivos del Paquete de Mantenimiento adquirido únicamente en los talleres de EL CONCESIONARIO donde adquirió el mencionado paquete.</li>
+      <li>EL CLIENTE deberá efectuar los mantenimientos preventivos del Paquete de Mantenimiento adquirido dentro de los periodos o kilometrajes, lo que ocurra primero, que se señalan en la Pauta de Mantenimiento Periódico.</li>
+      <li>En caso EL CLIENTE, dentro del periodo o kilometraje que corresponda, no llegase a realizar uno o varios de los mantenimientos preventivos del paquete que contrató, perderá el derecho a usarlos con posterioridad, toda vez que estos no resultan acumulables. En tales situaciones, tampoco aplicará la devolución de dinero, ni vale de consumo, ni reintegro de cualquier índole respecto de los mantenimientos que EL CLIENTE no hubiese utilizado.</li>
+      <li>De la misma forma, no será responsabilidad de EL CONCESIONARIO si EL CLIENTE no hace uso de los servicios de mantenimientos del Paquete de Mantenimiento adquirido dentro de los tiempos o kilometrajes estipulados en la Pauta de Mantenimiento Periódico.</li>
+      <li>EL CLIENTE declara conocer que, para mantener la garantía de producto del Vehículo, deberá realizar los mantenimientos preventivos dentro de la Pauta de Mantenimiento Periódico, tal como se establece en el Manual de Garantía y Mantenimiento del Vehículo. Sin perjuicio de ello, en caso el Vehículo perdiese la garantía de producto, EL CLIENTE podrá seguir haciendo uso de los mantenimientos del paquete contratado, los cuales se ejecutarán de manera independiente y no asociada a la garantía de producto.</li>
+      <li>En caso EL CLIENTE transfiera el Vehículo a un tercero, el nuevo propietario podrá hacer uso de los servicios de mantenimiento preventivo del Paquete de Mantenimiento adquirido por EL CLIENTE. En el supuesto anterior, será exclusiva responsabilidad de EL CLIENTE informar al nuevo propietario sobre los términos y condiciones del Programa.</li>
+      <li>Mediante la firma de este documento, EL CLIENTE brinda su autorización de manera previa para que EL CONCESIONARIO pueda ceder su posición contractual, respecto del Paquete de Mantenimiento adquirido, a favor de cualquier otro concesionario autorizado, importador y/o fabricante de la marca KIA.</li>
+      <li>El paquete adquirido no podrá ser transferido a otro vehículo.</li>
+      <li>Los Paquetes de Mantenimiento del Programa no incluyen mantenimientos correctivos.</li>
+      <li>EL CLIENTE declara que se le ha informado que, en el marco del Programa, EL CONCESIONARIO compartirá sus datos personales con Kia Import Perú S.A.C., con RUC N° 20472468147, importador de la marca KIA.</li>
+    </ul>
+
+    <hr>
+    <p>Atentamente,</p>
+    <p><strong>[ALMACENES SANTA CLARA S.A.]</strong></p>
+    <br>
+    <p>El presente documento ha sido leído, aprobado y aceptado en todos sus términos por:</p>
+
+    <div class="firma-block">
+      <div class="firma-center">
+        <div class="firma-line"></div>
+        <p><strong>FIRMA DEL CLIENTE</strong></p>
+      </div>
+    </div>
+
+    <table class="datos-table" style="margin-top:20px">
+      <tr><td class="label">Nombre:</td><td>${cliente}</td></tr>
+      <tr><td class="label">ID Cliente:</td><td>${f.ID_Cliente || '—'}</td></tr>
+      <tr><td class="label">Fecha:</td><td>${fecha}</td></tr>
+      <tr><td class="label">VIN del Vehículo:</td><td><strong>${vin}</strong></td></tr>
+    </table>
+
+    <table style="margin-top:16px;border-collapse:collapse;width:100%">
+      <tr>
+        <td style="border:1px solid #ccc;padding:8px;font-weight:bold;background:#f5f5f5;width:50%">Modelo de Vehículo</td>
+        <td style="border:1px solid #ccc;padding:8px">${modelo}</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #ccc;padding:8px;font-weight:bold;background:#f5f5f5">Paquete de Mantenimiento Elegido</td>
+        <td style="border:1px solid #ccc;padding:8px">${planLabel} — <span class="red bold">${ppm}</span></td>
+      </tr>
+    </table>
+
+    <p style="font-size:9pt;color:#666;margin-top:10px">Cotización N° ${cotNum} · Generado el ${fecha}</p>
+
+    <!-- ANEXO 1 EN PÁGINA SEPARADA -->
+    <div style="page-break-before: always; margin-top: 40px; padding-top: 20px;">
+      ${buildAnnexText(modelo, planLabel, freq)}
+      <p style="margin-top: 12px; line-height: 1.6; text-align: justify; font-size: 10.5pt;">Aplicación para la cotización seleccionada: <strong>${planLabel}</strong>.</p>
+    </div>
+  </div>`;
+}
+
+// -----------------------------------------------------------------------
+// CONTRATO UNLIMITED
+// -----------------------------------------------------------------------
+function buildContratoUL(f, vin) {
+  var freq = detectFreq(f);
+  var rango = detectRangoUL(f);
+  var modelo = f.Modelo || '—';
+  var cliente = f.Cliente || '—';
+  var planLabel = f.Plan || '—';
+  var ppm = f.Precio_PPM ? '$' + parseFloat(f.Precio_PPM).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '—';
+  var vigencia = getVigenciaUL(rango);
+  var fecha = fmtFecha();
+  var cotNum = f.Num_Cotizacion ? '#' + f.Num_Cotizacion : '';
+
+  return contratoStyles() + `
+  <div class="ct">
+    <h1>TÉRMINOS Y CONDICIONES DEL</h1>
+    <h2>PROGRAMA DE MANTENIMIENTOS KIA UNLIMITED</h2>
+
+    <div class="section-title">1. DESCRIPCIÓN</div>
+    <p>El Programa de Mantenimiento <strong>KIA UNLIMITED</strong> (en adelante, Programa KIA UNLIMITED) es un plan del <strong>[ALMACENES SANTA CLARA S.A.]</strong> (en adelante, EL CONCESIONARIO) que le permite al cliente, quien se encuentra identificado al final del presente documento (en adelante, EL CLIENTE), adquirir en forma anticipada y a un precio fijo y predeterminado, un paquete de mantenimientos preventivos por un periodo de tiempo o kilometraje determinado, lo que ocurra primero (en adelante, Paquete de Mantenimientos).</p>
+    <p>Los clientes KIA podrán adquirir un Paquete de Mantenimiento KIA UNLIMITED hasta antes de realizar el servicio de 20,000 kms a su vehículo.</p>
+
+    <div class="section-title">2. COBERTURA</div>
+    <p>Los servicios y repuestos comprendidos en cada uno de los Paquetes de Mantenimiento se detallan en la Pauta de Mantenimiento Periódico de KIA, la cual se adjunta como Anexo 1 a este documento. Por lo tanto, los servicios y repuestos que no estén incluidos en la Pauta de Mantenimiento Periódico deberán ser asumidos directamente por EL CLIENTE, pues no forman parte del mismo.</p>
+
+    <div class="section-title">3. PAQUETES DE MANTENIMIENTO</div>
+    <p>Los Paquetes de Mantenimientos disponibles del Programa KIA UNLIMITED son los siguientes:</p>
+    ${tablaUL(freq, rango)}
+
+    <div class="section-title">4. VIGENCIA DE LOS PAQUETES DE MANTENIMIENTO</div>
+    <p>La vigencia del paquete elegido (<strong>${planLabel}</strong>${rango ? ' · Rango: ' + rango : ''}) es de <strong>${vigencia}</strong>, contabilizados desde la realización del primer servicio del Paquete de Mantenimiento KIA UNLIMITED.</p>
+
+    <div class="section-title">5. CONDICIONES Y RESTRICCIONES</div>
+    <ul>
+      <li>EL CLIENTE deberá realizar los mantenimientos preventivos del Paquete de Mantenimiento adquirido únicamente en los talleres de EL CONCESIONARIO donde adquirió el mencionado paquete.</li>
+      <li>EL CLIENTE deberá efectuar los mantenimientos preventivos del Paquete de Mantenimiento adquirido dentro de los periodos o kilometrajes, lo que ocurra primero, que se señalan en la Pauta de Mantenimiento Periódico.</li>
+      <li>En caso EL CLIENTE, dentro del periodo o kilometraje que corresponda, no llegase a realizar uno o varios de los mantenimientos preventivos del paquete que contrató, perderá el derecho a usarlos con posterioridad, toda vez que estos no resultan acumulables. En tales situaciones, tampoco aplicará la devolución de dinero, ni vale de consumo, ni reintegro de cualquier índole respecto de los mantenimientos que EL CLIENTE no hubiese utilizado.</li>
+      <li>De la misma forma, no será responsabilidad de EL CONCESIONARIO si EL CLIENTE no hace uso de los servicios de mantenimientos del Paquete de Mantenimiento adquirido dentro de los tiempos o kilometrajes estipulados en la Pauta de Mantenimiento Periódico.</li>
+      <li>EL CLIENTE declara conocer que, para mantener la garantía de producto del Vehículo, deberá realizar los mantenimientos preventivos dentro de la Pauta de Mantenimiento Periódico, tal como se establece en el Manual de Garantía y Mantenimiento del Vehículo.</li>
+      <li>En caso EL CLIENTE transfiera el Vehículo a un tercero, el nuevo propietario podrá hacer uso de los servicios de mantenimiento preventivo del Paquete de Mantenimiento adquirido por EL CLIENTE. Será exclusiva responsabilidad de EL CLIENTE informar al nuevo propietario sobre los términos y condiciones del Programa.</li>
+      <li>Mediante la firma de este documento, EL CLIENTE brinda su autorización de manera previa para que EL CONCESIONARIO pueda ceder su posición contractual, respecto del Paquete de Mantenimiento adquirido, a favor de cualquier otro concesionario autorizado, importador y/o fabricante de la marca KIA.</li>
+      <li>El paquete adquirido no podrá ser transferido a otro vehículo.</li>
+      <li>Los Paquetes de Mantenimiento del Programa no incluyen mantenimientos correctivos.</li>
+      <li>EL CLIENTE declara que se le ha informado que, en el marco del Programa, EL CONCESIONARIO compartirá sus datos personales con Kia Import Perú S.A.C., con RUC N° 20472468147, importador de la marca KIA.</li>
+    </ul>
+
+    <hr>
+    <p>Atentamente,</p>
+    <p><strong>[ALMACENES SANTA CLARA S.A.]</strong></p>
+    <br>
+    <p>El presente documento ha sido leído, aprobado y aceptado en todos sus términos por:</p>
+
+    <div class="firma-block">
+      <div class="firma-center">
+        <div class="firma-line"></div>
+        <p><strong>FIRMA DEL CLIENTE</strong></p>
+      </div>
+    </div>
+
+    <table class="datos-table" style="margin-top:20px">
+      <tr><td class="label">Nombre:</td><td>${cliente}</td></tr>
+      <tr><td class="label">ID Cliente:</td><td>${f.ID_Cliente || '—'}</td></tr>
+      <tr><td class="label">Fecha:</td><td>${fecha}</td></tr>
+      <tr><td class="label">VIN del Vehículo:</td><td><strong>${vin}</strong></td></tr>
+    </table>
+
+    <table style="margin-top:16px;border-collapse:collapse;width:100%">
+      <tr>
+        <td style="border:1px solid #ccc;padding:8px;font-weight:bold;background:#f5f5f5;width:50%">Modelo de Vehículo</td>
+        <td style="border:1px solid #ccc;padding:8px">${modelo}</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #ccc;padding:8px;font-weight:bold;background:#f5f5f5">Paquete de Mantenimiento Elegido</td>
+        <td style="border:1px solid #ccc;padding:8px">${planLabel}${rango ? ' · ' + rango : ''} — <span class="red bold">${ppm}</span></td>
+      </tr>
+    </table>
+
+    <p style="font-size:9pt;color:#666;margin-top:10px">Cotización N° ${cotNum} · Generado el ${fecha}</p>
+
+    <!-- ANEXO 1 EN PÁGINA SEPARADA -->
+    <div style="page-break-before: always; margin-top: 40px; padding-top: 20px;">
+      ${buildAnnexText(modelo, planLabel, freq)}
+      <p style="margin-top: 12px; line-height: 1.6; text-align: justify; font-size: 10.5pt;">Aplicación para la cotización seleccionada: <strong>${planLabel}${rango ? ' · ' + rango : ''}</strong>.</p>
+    </div>
+  </div>`;
+}
+
+// -----------------------------------------------------------------------
+// EVENT LISTENERS para el tab de contratos
+// -----------------------------------------------------------------------
+(function() {
+  // Se ejecuta después del load principal
+  var btnRefreshContrato = gel('btn-contrato-refresh');
+  if (btnRefreshContrato) btnRefreshContrato.addEventListener('click', function() { loadContrato(); });
+
+  var contratoSearch = gel('contrato-search');
+  if (contratoSearch) contratoSearch.addEventListener('input', function() { filterContratoTable(); });
+})();
+</script>
+
+<script>
+// -----------------------------------------------------------------------
+// DATOS DE ANEXOS EXTRAÍDOS DESDE EXCEL
+// Funciones para buscar y renderizar tablas de mantenimiento dinámicas
+// ------- -----------------------------------------------------------------------
+
+// Función para encontrar la tabla de anexos según modelo y plan
+function findAnnexTable(modelo, plan) {
+  var modeloCompleto = (modelo || '').trim().toUpperCase();
+  var firstWord = modeloCompleto.split(' ')[0]; // Extraer primera palabra
+  var isUL = (plan || '').trim().toLowerCase().indexOf('unlimited') >= 0;
+  
+  console.log('🔍 Buscando anexo:');
+  console.log('   Modelo completo:', modeloCompleto);
+  console.log('   Primera palabra:', firstWord);
+  console.log('   Plan:', plan, '(Unlimited:', isUL, ')');
+  
+  // Datos desde Excel - estructura de celdas B2
+  var fullserviceAnnexes = [
+    { nombres: 'PICANTO, SOLUTO, SONET K3, TASMAN', palabras: ['PICANTO', 'SOLUTO', 'SONET', 'TASMAN', 'K3'] },
+    { nombres: 'SELTOS, SPORTAGE, SORENTO, CARNIVAL, CARENS', palabras: ['SELTOS', 'SPORTAGE', 'SORENTO', 'CARNIVAL', 'CARENS'] },
+    { nombres: 'EV5', palabras: ['EV5'] },
+    { nombres: 'EV9', palabras: ['EV9'] },
+    { nombres: 'NIRO', palabras: ['NIRO'] },
+    { nombres: 'TOWNER', palabras: ['TOWNER'] }
+  ];
+  
+  var unlimitedAnnexes = [
+    { nombres: 'PICANTO, SOLUTO, RIO, CERATO, SONET K3, TASMAN', palabras: ['PICANTO', 'SOLUTO', 'RIO', 'CERATO', 'SONET', 'TASMAN', 'K3'] },
+    { nombres: 'SELTOS, SPORTAGE, SORENTO, CARNIVAL, CARENS', palabras: ['SELTOS', 'SPORTAGE', 'SORENTO', 'CARNIVAL', 'CARENS'] },
+    { nombres: 'NIRO', palabras: ['NIRO'] },
+    { nombres: 'TOWNER', palabras: ['TOWNER'] }
+  ];
+  
+  var annexList = isUL ? unlimitedAnnexes : fullserviceAnnexes;
+  
+  // Buscar la primera palabra en la lista de anexos
+  for (var i = 0; i < annexList.length; i++) {
+    var anexo = annexList[i];
+    console.log('   Buscando en anexo', i + 1, 'con modelos:', anexo.nombres);
+    for (var j = 0; j < anexo.palabras.length; j++) {
+      if (firstWord === anexo.palabras[j]) {
+        console.log('   ✅ ¡Encontrado! Coincide con:', anexo.palabras[j]);
+        return {
+          modelo: anexo.nombres,
+          tipo: isUL ? 'unlimited' : 'fullservice',
+          primeraPalabra: firstWord
+        };
+      }
+    }
+  }
+  
+  console.log('   ❌ No encontrado');
+  return null;
+}
+
+console.log('Funciones de anexos dinámicos cargadas correctamente');
+</script>
+
 </body>
 </html>
